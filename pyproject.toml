@@ -8,6 +8,7 @@ dependencies = [
     "langchain>=0.1.13",
     "langchain-community>=0.0.28",
     "requests>=2.31.0",
+    "huggingface-hub>=0.16.0",
     "reportlab>=4.0.9",
     "fastapi>=0.135.0",
     "uvicorn>=0.28.0",

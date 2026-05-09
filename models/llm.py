@@ -1,127 +1,77 @@
-"""LLM initialization - using FREE HuggingFace Inference API with direct HTTP calls."""
+"""LLM initialization - using Groq API with Llama 3.1 model."""
 
 import os
 import logging
-import requests
+from groq import Groq#type: ignore
 
 logger = logging.getLogger(__name__)
 
 
-class SimpleHFLM:
-    """Direct HTTP to HuggingFace Inference Providers (new OpenAI-compatible API)."""
+class GroqLLM:
+    """Groq LLM client for fast inference."""
 
-    def __init__(self, api_key: str, model: str):
+    def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
         self.api_key = api_key
         self.model = model
-        # NEW endpoint: OpenAI-compatible chat completions API
-        self.api_url = "https://router.huggingface.co/v1/chat/completions"
-        self.headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        logger.info(f"🔧 Initialized LLM with model: {model}")
-        logger.info(f"📡 Using endpoint: {self.api_url}")
+        self.client = Groq(api_key=api_key)
+        logger.info(f"🔧 Initialized Groq LLM with model: {model}")
 
     def invoke(self, prompt: str) -> str:
-        """Call the HuggingFace Inference Providers API and return response."""
-        logger.info(f"🌐 Calling HuggingFace Inference Providers API")
+        """Call the Groq API and return response."""
+        logger.info(f"🚀 Calling Groq API")
         logger.debug(f"   Model: {self.model}")
         logger.debug(f"   Prompt: {prompt[:100]}...")
 
         try:
-            # OpenAI-compatible message format (CORRECT format for new API)
-            payload = {
-                "model": f"{self.model}:fastest",  # Auto-select fastest provider
-                "messages": [
+            message = self.client.chat.completions.create(
+                messages=[
                     {
                         "role": "user",
-                        "content": prompt
+                        "content": prompt,
                     }
                 ],
-                "max_tokens": 512,
-                "temperature": 0.7
-            }
-
-            logger.debug(f"   URL: {self.api_url}")
-            logger.debug(f"   Payload: {payload}")
-
-            response = requests.post(
-                self.api_url,
-                headers=self.headers,
-                json=payload,
-                timeout=120  # Longer timeout for first inference
+                model=self.model,
+                max_tokens=2048,
+                temperature=0.7,
             )
 
-            logger.debug(f"   Response status: {response.status_code}")
-
-            if response.status_code not in [200, 201]:
-                logger.error(
-                    f"❌ API Error {response.status_code}: {response.text[:500]}")
-                raise Exception(
-                    f"HuggingFace API Error {response.status_code}: {response.text[:500]}")
-
-            result = response.json()
-            logger.debug(f"   Response: {str(result)[:200]}...")
-
-            # Parse OpenAI-compatible response
-            if "choices" in result and len(result["choices"]) > 0:
-                text = result["choices"][0]["message"]["content"]
-            else:
-                logger.error(f"❌ Unexpected response format: {result}")
-                raise Exception(f"Unexpected API response format: {result}")
-
-            if not text or not text.strip():
-                logger.error(f"❌ Empty response from API: {result}")
-                raise Exception("HuggingFace API returned empty response")
-
+            text = message.choices[0].message.content
             logger.info(f"✅ Got response: {len(text)} characters")
             return text
-        except requests.exceptions.Timeout:
-            logger.error("❌ API call timed out - model may be cold starting")
-            raise Exception(
-                "HuggingFace API timeout - model may be loading, try again in a moment")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"❌ Request failed: {e}")
-            raise Exception(f"Request failed: {e}")
         except Exception as e:
-            logger.error(f"❌ API call failed: {e}", exc_info=True)
+            logger.error(f"❌ Groq API call failed: {e}", exc_info=True)
             raise
 
 
 def get_llm():
     """
-    Initialize LLM using FREE HuggingFace Inference API.
-
-    NO PAYMENT REQUIRED - completely free tier available.
+    Initialize LLM using Groq API.
 
     Setup:
-    1. Sign up FREE at https://huggingface.co
-    2. Get free token at https://huggingface.co/settings/tokens
-    3. No credit card needed - free forever with rate limits
+    1. Get API key from https://console.groq.com/keys
+    2. Add to .env: GROQ_API_KEY=your_key
 
     Returns:
-        SimpleHFLM instance
+        GroqLLM instance
     """
-    logger.info("🔧 Initializing LLM...")
+    logger.info("🔧 Initializing Groq LLM...")
 
-    api_key = os.getenv("HUGGINGFACE_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        logger.error("❌ HUGGINGFACE_API_KEY not set!")
+        logger.error("❌ GROQ_API_KEY not set!")
         raise ValueError(
-            "HUGGINGFACE_API_KEY not set!\n"
-            "1. Sign up FREE: https://huggingface.co\n"
-            "2. Get token: https://huggingface.co/settings/tokens\n"
-            "3. Add to .env: HUGGINGFACE_API_KEY=your_token\n"
-            "NO PAYMENT NEEDED - completely free!"
+            "GROQ_API_KEY not set!\n"
+            "1. Get API key: https://console.groq.com/keys\n"
+            "2. Add to .env: GROQ_API_KEY=your_key"
         )
 
-    model = os.getenv("MODEL_ID", "mistralai/Mistral-7B-Instruct-v0.1")
+    model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     logger.info(f"🤖 Using model: {model}")
 
     try:
-        llm = SimpleHFLM(api_key, model)
-        logger.info("✅ LLM initialized successfully")
+        llm = GroqLLM(api_key, model)
+        logger.info("✅ Groq LLM initialized successfully")
         return llm
     except Exception as e:
-        logger.error(f"❌ Failed to initialize LLM: {e}")
+        logger.error(f"❌ Failed to initialize Groq LLM: {e}")
         raise
