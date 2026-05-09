@@ -3,8 +3,8 @@
 import os
 import logging
 from dotenv import load_dotenv  # type: ignore
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException  # type: ignore
+from fastapi.responses import FileResponse  # type: ignore
 from pydantic import BaseModel
 from agent.book_agent import BookGenerationAgent
 
