@@ -32,7 +32,7 @@ class GroqLLM:
                 ],
                 model=self.model,
                 max_tokens=4096,
-                temperature=0.7,
+                temperature=0.9,
             )
 
             text = message.choices[0].message.content
@@ -46,11 +46,6 @@ class GroqLLM:
 def get_llm():
     """
     Initialize LLM using Groq API.
-
-    Setup:
-    1. Get API key from https://console.groq.com/keys
-    2. Add to .env: GROQ_API_KEY=your_key
-
     Returns:
         GroqLLM instance
     """

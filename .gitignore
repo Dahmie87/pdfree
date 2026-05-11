@@ -27,3 +27,6 @@ wheels/
 
 # OS
 .DS_Store
+
+
+check_models.py

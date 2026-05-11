@@ -2,6 +2,7 @@
 
 import os
 import logging
+import re
 from dotenv import load_dotenv  # type: ignore
 from fastapi import FastAPI, HTTPException  # type: ignore
 from fastapi.responses import FileResponse  # type: ignore
@@ -33,6 +34,24 @@ try:
 except Exception as e:
     logger.error(f"❌ Failed to initialize agent: {e}")
     raise
+
+
+def sanitize_filename(filename: str) -> str:
+    """
+    Remove illegal characters from filename for Windows/Unix compatibility.
+    
+    Illegal characters: < > : " | ? * / \ and control characters
+    """
+    # Remove illegal characters
+    illegal_chars = r'[<>:"|?*\\/]'
+    sanitized = re.sub(illegal_chars, '', filename)
+    # Replace multiple spaces with single underscore
+    sanitized = re.sub(r'\s+', '_', sanitized)
+    # Remove leading/trailing dots and spaces
+    sanitized = sanitized.strip('. ')
+    # Limit length
+    sanitized = sanitized[:50]
+    return sanitized
 
 
 class BookRequest(BaseModel):
@@ -75,8 +94,9 @@ def generate_book(request: BookRequest):
         # Generate PDF
         pdf_bytes, title = agent.generate_pdf_book(request.prompt)
 
-        # Save temporarily
-        filename = f"book_{title.replace(' ', '_')[:20]}.pdf"
+        # Save temporarily with sanitized filename
+        safe_title = sanitize_filename(title)
+        filename = f"book_{safe_title}.pdf"
         filepath = f"/tmp/{filename}" if os.path.exists("/tmp") else filename
 
         logger.info(f"💾 Saving PDF to: {filepath}")
@@ -107,5 +127,4 @@ def health_check():
 
 if __name__ == "__main__":
     import uvicorn  # type: ignore
-    logger.info("🚀 Starting FastAPI server...")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    logger.info("🚀 Starting FastAPI server..

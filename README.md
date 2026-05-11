@@ -1,12 +1,12 @@
 # PDFree - LangChain Book Generation Agent
 
-Generate complete PDF books from simple prompts using LangChain and free resources.
+Generate complete PDF books from simple prompts using LangChain and Hugging Face Inference API.
 
 ## Features
 
 - 🤖 LangChain-powered AI agent for book generation
 - 📚 Generates structured, well-formatted PDF books
-- 🔧 Free LLM via HuggingFace Inference API
+- 🔧 LLM via HuggingFace Inference API
 - 🚀 FastAPI REST API for easy integration
 - 💻 CLI tool for quick testing
 - 📄 Professional PDF formatting with ReportLab

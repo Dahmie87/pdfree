@@ -1,15 +1,16 @@
 """LangChain agent for book generation."""
 
 import logging
+import json
 from models.llm import get_llm
 from generation.pdf_generator import PDFGenerator
-from agent.prompts import get_book_generation_prompt, get_title_prompt
+from agent.prompts import get_title_prompt, get_toc_prompt, get_chapter_prompt
 
 logger = logging.getLogger(__name__)
 
 
 class BookGenerationAgent:
-    """Agent that generates PDF books from user prompts."""
+    """Agent that generates PDF books from user prompts using reiteration."""
 
     def __init__(self):
         logger.info("📚 Initializing BookGenerationAgent...")
@@ -29,33 +30,122 @@ class BookGenerationAgent:
 
     def _generate_title(self, user_prompt: str) -> str:
         """Generate a title for the book."""
-        logger.info(f"📝 Generating title for prompt: {user_prompt[:50]}...")
+        logger.info(f"📝 Step 1: Generating title...")
         try:
             title_prompt = get_title_prompt(user_prompt)
-            logger.debug(f"   Title prompt: {title_prompt[:100]}...")
             title = self.llm.invoke(title_prompt)
-            logger.info(f"   ✅ Title generated: {title}")
+            logger.info(f"   ✅ Title: {title.strip()}")
             return title.strip()
         except Exception as e:
             logger.error(f"   ❌ Title generation failed: {e}")
             raise
 
-    def _generate_content(self, user_prompt: str) -> str:
-        """Generate the book content."""
-        logger.info("✍️  Generating content...")
+    def _generate_toc(self, user_prompt: str) -> list:
+        """Generate table of contents with multiple chapters."""
+        logger.info(f"📋 Step 2: Generating table of contents...")
         try:
-            content_prompt = get_book_generation_prompt(user_prompt)
-            logger.debug(f"   Content prompt: {content_prompt[:100]}...")
-            content = self.llm.invoke(content_prompt)
-            logger.info(f"   ✅ Content generated: {len(content)} characters")
-            return content.strip()
+            toc_prompt = get_toc_prompt(user_prompt)
+            toc_response = self.llm.invoke(toc_prompt)
+
+            # Parse JSON response
+            toc_data = json.loads(toc_response)
+            chapters = toc_data.get("chapters", [])
+
+            logger.info(f"   ✅ Generated {len(chapters)} chapters")
+            for chapter in chapters:
+                logger.debug(
+                    f"      - Chapter {chapter['number']}: {chapter['title']}")
+
+            return chapters
+        except json.JSONDecodeError:
+            logger.error(
+                "   ❌ Failed to parse TOC JSON, retrying with simpler format")
+            # Fallback: create default chapters
+            return self._generate_default_toc()
         except Exception as e:
-            logger.error(f"   ❌ Content generation failed: {e}")
+            logger.error(f"   ❌ TOC generation failed: {e}")
             raise
+
+    def _generate_default_toc(self) -> list:
+        """Generate a default table of contents if TOC generation fails."""
+        logger.info("   📌 Using default chapter structure...")
+        default_chapters = [
+            {
+                "number": 1,
+                "title": "Introduction & Fundamentals",
+                "sections": ["Overview", "Key Concepts", "Historical Context"]
+            },
+            {
+                "number": 2,
+                "title": "Core Principles & Theory",
+                "sections": ["Theory", "Best Practices", "Common Misconceptions"]
+            },
+            {
+                "number": 3,
+                "title": "Practical Implementation",
+                "sections": ["Getting Started", "Real-world Examples", "Common Challenges"]
+            },
+            {
+                "number": 4,
+                "title": "Advanced Topics",
+                "sections": ["Advanced Techniques", "Optimization", "Scaling"]
+            },
+            {
+                "number": 5,
+                "title": "Case Studies & Examples",
+                "sections": ["Case Study 1", "Case Study 2", "Lessons Learned"]
+            },
+        ]
+        return default_chapters
+
+    def _generate_chapter(self, user_prompt: str, chapter: dict) -> str:
+        """Generate content for a single chapter."""
+        chapter_num = chapter["number"]
+        chapter_title = chapter["title"]
+        sections = chapter.get("sections", [])
+
+        logger.info(
+            f"   📖 Generating Chapter {chapter_num}: {chapter_title}...")
+        try:
+            chapter_prompt = get_chapter_prompt(
+                topic=user_prompt,
+                chapter_num=chapter_num,
+                chapter_title=chapter_title,
+                sections=sections
+            )
+            content = self.llm.invoke(chapter_prompt)
+            logger.debug(f"      ✅ Generated {len(content)} characters")
+            return content
+        except Exception as e:
+            logger.error(f"      ❌ Failed to generate chapter: {e}")
+            return f"[Error generating Chapter {chapter_num}: {chapter_title}]"
+
+    def _generate_chapters(self, user_prompt: str, chapters: list) -> str:
+        """Generate content for all chapters and combine them."""
+        logger.info(f"✍️  Step 3: Generating {len(chapters)} chapters...")
+
+        combined_content = []
+        for i, chapter in enumerate(chapters, 1):
+            logger.info(
+                f"   [{i}/{len(chapters)}] Generating Chapter {chapter['number']}...")
+            chapter_content = self._generate_chapter(user_prompt, chapter)
+
+            # Add chapter header
+            chapter_header = f"\n\n{'='*50}\nCHAPTER {chapter['number']}: {chapter['title'].upper()}\n{'='*50}\n\n"
+            combined_content.append(chapter_header + chapter_content)
+
+        logger.info(f"   ✅ All {len(chapters)} chapters generated!")
+        return "".join(combined_content)
 
     def generate_pdf_book(self, user_prompt: str) -> tuple[bytes, str]:
         """
-        Generate a complete PDF book from a user prompt.
+        Generate a complete PDF book from a user prompt using reiteration.
+
+        Process:
+        1. Generate title
+        2. Generate table of contents (multiple chapters)
+        3. Generate each chapter as separate LLM calls
+        4. Combine into final PDF
 
         Args:
             user_prompt: User's input describing what the book should be about
@@ -63,20 +153,20 @@ class BookGenerationAgent:
         Returns:
             Tuple of (pdf_bytes, title)
         """
-        logger.info(
-            f"🚀 Starting book generation for prompt: {user_prompt[:50]}...")
+        logger.info(f"🚀 Starting book generation for: {user_prompt[:50]}...")
 
         try:
             # Step 1: Generate title
-            logger.info("📝 Step 1: Generating title...")
             title = self._generate_title(user_prompt)
 
-            # Step 2: Generate content
-            logger.info("✍️  Step 2: Generating content...")
-            content = self._generate_content(user_prompt)
+            # Step 2: Generate table of contents
+            chapters = self._generate_toc(user_prompt)
 
-            # Step 3: Create PDF
-            logger.info("📄 Step 3: Creating PDF...")
+            # Step 3: Generate all chapters
+            content = self._generate_chapters(user_prompt, chapters)
+
+            # Step 4: Create PDF
+            logger.info("📄 Step 4: Creating PDF...")
             try:
                 pdf_bytes = self.pdf_generator.generate_pdf(
                     title=title,
