@@ -1,14 +1,14 @@
-"""LLM initialization - using Groq API with Llama 3.1 model."""
+"""LLM initialization - using Groq API with Llama 3.3 model."""
 
 import os
 import logging
-from groq import Groq#type: ignore
+from groq import Groq  # type: ignore
 
 logger = logging.getLogger(__name__)
 
 
 class GroqLLM:
-    """Groq LLM client for fast inference."""
+    """LLM client for fast inference."""
 
     def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
         self.api_key = api_key
@@ -31,7 +31,7 @@ class GroqLLM:
                     }
                 ],
                 model=self.model,
-                max_tokens=2048,
+                max_tokens=4096,
                 temperature=0.7,
             )
 
