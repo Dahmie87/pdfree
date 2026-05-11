@@ -39,7 +39,7 @@ except Exception as e:
 def sanitize_filename(filename: str) -> str:
     """
     Remove illegal characters from filename for Windows/Unix compatibility.
-    
+
     Illegal characters: < > : " | ? * / \ and control characters
     """
     # Remove illegal characters
@@ -127,4 +127,5 @@ def health_check():
 
 if __name__ == "__main__":
     import uvicorn  # type: ignore
-    logger.info("🚀 Starting FastAPI server..
+    logger.info("🚀 Starting FastAPI server...")
+    uvicorn.run(app, host="0.0.0.0", port=8000)
