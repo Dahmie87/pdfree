@@ -6,6 +6,7 @@ import re
 from dotenv import load_dotenv  # type: ignore
 from fastapi import FastAPI, HTTPException  # type: ignore
 from fastapi.responses import FileResponse  # type: ignore
+from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from pydantic import BaseModel
 from agent.book_agent import BookGenerationAgent
 
@@ -25,6 +26,20 @@ app = FastAPI(
     description="Generate PDF books from prompts using LangChain",
     version="0.1.0"
 )
+
+# Add CORS middleware (must be BEFORE routes)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],                    # Allow all origins
+    # Must be False when allow_origins=["*"]
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
+)
+
+logger.info("✅ CORS middleware configured - allowing all origins")
 
 # Initialize agent
 logger.info("🚀 Initializing BookGenerationAgent...")
@@ -67,6 +82,25 @@ def read_root():
         "endpoint": "/generate-book (POST)",
         "docs": "/docs"
     }
+
+
+@app.get("/health")
+def health_check():  # type: ignore
+    """Health check endpoint."""
+    logger.info("💚 Health check")
+    return {"status": "ok", "message": "PDFree backend is running"}
+
+
+@app.options("/health")
+def options_health():
+    """Handle CORS preflight for health."""
+    return {"message": "OK"}
+
+
+@app.options("/generate-book")
+def options_generate_book():
+    """Handle CORS preflight requests."""
+    return {"message": "OK"}
 
 
 @app.post("/generate-book")
@@ -128,4 +162,4 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn  # type: ignore
     logger.info("🚀 Starting FastAPI server...")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
