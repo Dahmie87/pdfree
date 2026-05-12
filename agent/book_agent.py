@@ -137,6 +137,31 @@ class BookGenerationAgent:
         logger.info(f"   ✅ All {len(chapters)} chapters generated!")
         return "".join(combined_content)
 
+    def _create_toc_page(self, chapters: list) -> str:
+        """Create a table of contents page from the chapters list."""
+        logger.info("📚 Creating table of contents page...")
+
+        toc_lines = [
+            "TABLE OF CONTENTS",
+            "=" * 50,
+            ""
+        ]
+
+        for chapter in chapters:
+            chapter_num = chapter["number"]
+            chapter_title = chapter["title"]
+            toc_lines.append(f"Chapter {chapter_num}: {chapter_title}")
+
+            # Add sections if available
+            sections = chapter.get("sections", [])
+            for section in sections:
+                toc_lines.append(f"  • {section}")
+            toc_lines.append("")
+
+        toc_content = "\n".join(toc_lines)
+        logger.debug(f"   ✅ TOC created: {len(toc_content)} characters")
+        return toc_content
+
     def generate_pdf_book(self, user_prompt: str) -> tuple[bytes, str]:
         """
         Generate a complete PDF book from a user prompt using reiteration.
@@ -145,7 +170,8 @@ class BookGenerationAgent:
         1. Generate title
         2. Generate table of contents (multiple chapters)
         3. Generate each chapter as separate LLM calls
-        4. Combine into final PDF
+        4. Create TOC page
+        5. Combine into final PDF
 
         Args:
             user_prompt: User's input describing what the book should be about
@@ -163,10 +189,16 @@ class BookGenerationAgent:
             chapters = self._generate_toc(user_prompt)
 
             # Step 3: Generate all chapters
-            content = self._generate_chapters(user_prompt, chapters)
+            chapter_content = self._generate_chapters(user_prompt, chapters)
 
-            # Step 4: Create PDF
-            logger.info("📄 Step 4: Creating PDF...")
+            # Step 4: Create TOC page
+            toc_page = self._create_toc_page(chapters)
+
+            # Combine: TOC page + all chapters
+            content = toc_page + "\n\n" + chapter_content
+
+            # Step 5: Create PDF
+            logger.info("📄 Step 5: Creating PDF...")
             try:
                 pdf_bytes = self.pdf_generator.generate_pdf(
                     title=title,

@@ -161,25 +161,57 @@ class PDFGenerator:
         story = []
         lines = content.split('\n')
         i = 0
+        in_toc = False
 
         while i < len(lines):
             line = lines[i].strip()
-            
+
             # Skip empty lines
             if not line:
                 i += 1
                 continue
-            
+
+            # Check for TABLE OF CONTENTS
+            if "TABLE OF CONTENTS" in line.upper():
+                in_toc = True
+                story.append(PageBreak())
+                story.append(Paragraph("TABLE OF CONTENTS",
+                             self.styles['ChapterHeading']))
+                story.append(Spacer(1, 0.2*inch))
+                i += 1
+                continue
+
+            # Parse TOC entries (Chapter X: Title or • Section)
+            if in_toc:
+                if line.startswith("="):
+                    i += 1
+                    continue
+                if line.startswith("Chapter"):
+                    story.append(
+                        Paragraph(line, self.styles['SectionHeading']))
+                    story.append(Spacer(1, 0.05*inch))
+                    i += 1
+                    continue
+                if line.startswith("•"):
+                    story.append(Paragraph(line, self.styles['CustomBody']))
+                    story.append(Spacer(1, 0.03*inch))
+                    i += 1
+                    continue
+                # End of TOC (empty line after chapters)
+                if not line and i > 0:
+                    in_toc = False
+
             # Check for chapter headers (====CHAPTER X: TITLE====)
             if line.startswith('=') and 'CHAPTER' in line.upper():
                 # Extract chapter number and title
                 chapter_title = line.strip('=').strip()
                 story.append(PageBreak())
-                story.append(Paragraph(chapter_title, self.styles['ChapterHeading']))
+                story.append(
+                    Paragraph(chapter_title, self.styles['ChapterHeading']))
                 story.append(Spacer(1, 0.2*inch))
                 i += 1
                 continue
-            
+
             # Check for section headers (ALL CAPS with underscores or standalone short lines)
             if self._is_section_header(line):
                 story.append(Spacer(1, 0.15*inch))
@@ -187,22 +219,22 @@ class PDFGenerator:
                 story.append(Spacer(1, 0.1*inch))
                 i += 1
                 continue
-            
+
             # Collect paragraph text (combine until double newline or header)
             paragraph_lines = []
             while i < len(lines):
                 current_line = lines[i].strip()
-                
+
                 if not current_line:
                     i += 1
                     break
-                
+
                 if (current_line.startswith('=') and 'CHAPTER' in current_line.upper()) or self._is_section_header(current_line):
                     break
-                
+
                 paragraph_lines.append(current_line)
                 i += 1
-            
+
             # Add paragraph if not empty
             if paragraph_lines:
                 para_text = ' '.join(paragraph_lines)
