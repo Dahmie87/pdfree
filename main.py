@@ -74,7 +74,7 @@ class BookRequest(BaseModel):
     """Request model for book generation."""
     prompt: str
     length_priority: Literal["length", "balanced",
-                             "speed", "super fast"] | None = "balanced"
+                             "fast", "super fast"] | None = "balanced"
 
 
 @app.get("/")

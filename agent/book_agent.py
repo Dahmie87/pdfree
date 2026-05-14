@@ -2,9 +2,16 @@
 
 import logging
 import json
+import random
 from models.llm import get_llm
 from generation.pdf_generator import PDFGenerator
-from agent.prompts import get_title_prompt, get_toc_prompt, get_chapter_prompt
+from agent.prompts import (
+    get_title_prompt,
+    get_title_toc_prompt,
+    get_toc_prompt,
+    get_chapter_prompt,
+    get_full_book_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +51,8 @@ class BookGenerationAgent:
         """Generate table of contents with multiple chapters."""
         logger.info(f"📋 Step 2: Generating table of contents...")
         try:
-            toc_prompt = get_toc_prompt(user_prompt, length_priority=length_priority)
+            toc_prompt = get_toc_prompt(
+                user_prompt, length_priority=length_priority)
             toc_response = self.llm.invoke(toc_prompt)
 
             # Parse JSON response
@@ -64,6 +72,32 @@ class BookGenerationAgent:
             return self._generate_default_toc()
         except Exception as e:
             logger.error(f"   ❌ TOC generation failed: {e}")
+            raise
+
+    def _generate_title_and_toc(self, user_prompt: str, length_priority: str | None = None) -> tuple[str, list]:
+        """Generate title and table of contents in a single call."""
+        logger.info("📋 Step 1: Generating title + table of contents...")
+        try:
+            combined_prompt = get_title_toc_prompt(
+                user_prompt, length_priority=length_priority)
+            response = self.llm.invoke(combined_prompt)
+            data = json.loads(response)
+            title = str(data.get("title", "")).strip(
+            ) or self._generate_title(user_prompt)
+            chapters = data.get("chapters", [])
+            if not chapters:
+                chapters = self._generate_toc(
+                    user_prompt, length_priority=length_priority)
+            return title, chapters
+        except json.JSONDecodeError:
+            logger.error(
+                "   ❌ Failed to parse title+TOC JSON, retrying separately")
+            return self._generate_title(user_prompt), self._generate_toc(
+                user_prompt,
+                length_priority=length_priority
+            )
+        except Exception as e:
+            logger.error(f"   ❌ Title+TOC generation failed: {e}")
             raise
 
     def _generate_default_toc(self) -> list:
@@ -167,6 +201,37 @@ class BookGenerationAgent:
         logger.debug(f"   ✅ TOC created: {len(toc_content)} characters")
         return toc_content
 
+    def _format_toc_for_prompt(self, chapters: list) -> str:
+        """Format TOC lines for the full-book prompt."""
+        toc_lines = []
+        for chapter in chapters:
+            chapter_num = chapter["number"]
+            chapter_title = chapter["title"]
+            toc_lines.append(f"Chapter {chapter_num}: {chapter_title}")
+            sections = chapter.get("sections", [])
+            for section in sections:
+                toc_lines.append(f"- {section}")
+        return "\n".join(toc_lines)
+
+    def _pick_total_calls(self, length_priority: str | None) -> int:
+        """Pick a total call count based on priority ranges."""
+        if length_priority == "super fast":
+            return 2
+        if length_priority == "fast":
+            return random.randint(2, 3)
+        if length_priority == "length":
+            return random.randint(4, 6)
+        return random.randint(3, 4)
+
+    def _split_chapters(self, chapters: list, parts: int) -> list[list]:
+        """Split chapters into roughly even parts."""
+        if parts <= 1:
+            return [chapters]
+        buckets = [[] for _ in range(parts)]
+        for idx, chapter in enumerate(chapters):
+            buckets[idx % parts].append(chapter)
+        return buckets
+
     def generate_book_content(
         self,
         user_prompt: str,
@@ -186,20 +251,32 @@ class BookGenerationAgent:
         title = self._generate_title(user_prompt)
 
         # Step 2: Generate table of contents
-        chapters = self._generate_toc(user_prompt, length_priority=length_priority)
+        chapters = self._generate_toc(
+            user_prompt, length_priority=length_priority)
 
-        # Step 3: Generate all chapters
-        chapter_content = self._generate_chapters(
-            user_prompt,
-            chapters,
-            length_priority=length_priority
-        )
+        # Step 3: Generate content (fast path uses a single call)
+        if length_priority in {"fast", "super fast"}:
+            toc_page = self._create_toc_page(chapters)
+            toc_text = self._format_toc_for_prompt(chapters)
+            full_prompt = get_full_book_prompt(
+                topic=user_prompt,
+                toc_text=toc_text,
+                length_priority=length_priority
+            )
+            full_content = self.llm.invoke(full_prompt)
+            content = toc_page + "\n\n" + full_content
+        else:
+            chapter_content = self._generate_chapters(
+                user_prompt,
+                chapters,
+                length_priority=length_priority
+            )
 
-        # Step 4: Create TOC page
-        toc_page = self._create_toc_page(chapters)
+            # Step 4: Create TOC page
+            toc_page = self._create_toc_page(chapters)
 
-        # Combine: TOC page + all chapters
-        content = toc_page + "\n\n" + chapter_content
+            # Combine: TOC page + all chapters
+            content = toc_page + "\n\n" + chapter_content
 
         return title, chapters, content
 
@@ -226,6 +303,9 @@ class BookGenerationAgent:
                 user_prompt,
                 length_priority=length_priority
             )
+
+            total_calls = self._pick_total_calls(length_priority)
+            logger.info(f"📞 Target LLM calls: {total_calls}")
 
             # Step 5: Create PDF
             logger.info("📄 Step 5: Creating PDF...")
