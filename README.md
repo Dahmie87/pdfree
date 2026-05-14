@@ -14,7 +14,7 @@ Generate complete PDF books from simple prompts using LangChain and Hugging Face
 ## Stack
 
 - **LangChain**: Agent orchestration & LLM integration
-- **HuggingFace**: Free LLM Inference API
+- **HuggingFace**: LLM Inference API
 - **ReportLab**: PDF generation
 - **FastAPI**: REST API
 - **Python 3.10+**: Runtime

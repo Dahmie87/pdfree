@@ -162,7 +162,7 @@ class BookGenerationAgent:
         logger.debug(f"   ✅ TOC created: {len(toc_content)} characters")
         return toc_content
 
-    def generate_pdf_book(self, user_prompt: str) -> tuple[bytes, str]:
+    def generate_pdf_book(self, user_prompt: str, desired_pages: int | None = None) -> tuple[bytes, str]:
         """
         Generate a complete PDF book from a user prompt using reiteration.
 
@@ -175,11 +175,14 @@ class BookGenerationAgent:
 
         Args:
             user_prompt: User's input describing what the book should be about
+            desired_pages: Optional target page count requested by the caller
 
         Returns:
             Tuple of (pdf_bytes, title)
         """
         logger.info(f"🚀 Starting book generation for: {user_prompt[:50]}...")
+        if desired_pages is not None:
+            logger.info(f"📄 Target pages requested: {desired_pages}")
 
         try:
             # Step 1: Generate title
