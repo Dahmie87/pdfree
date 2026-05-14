@@ -40,11 +40,11 @@ class BookGenerationAgent:
             logger.error(f"   ❌ Title generation failed: {e}")
             raise
 
-    def _generate_toc(self, user_prompt: str) -> list:
+    def _generate_toc(self, user_prompt: str, length_priority: str | None = None) -> list:
         """Generate table of contents with multiple chapters."""
         logger.info(f"📋 Step 2: Generating table of contents...")
         try:
-            toc_prompt = get_toc_prompt(user_prompt)
+            toc_prompt = get_toc_prompt(user_prompt, length_priority=length_priority)
             toc_response = self.llm.invoke(toc_prompt)
 
             # Parse JSON response
@@ -98,7 +98,7 @@ class BookGenerationAgent:
         ]
         return default_chapters
 
-    def _generate_chapter(self, user_prompt: str, chapter: dict) -> str:
+    def _generate_chapter(self, user_prompt: str, chapter: dict, length_priority: str | None = None) -> str:
         """Generate content for a single chapter."""
         chapter_num = chapter["number"]
         chapter_title = chapter["title"]
@@ -111,7 +111,8 @@ class BookGenerationAgent:
                 topic=user_prompt,
                 chapter_num=chapter_num,
                 chapter_title=chapter_title,
-                sections=sections
+                sections=sections,
+                length_priority=length_priority
             )
             content = self.llm.invoke(chapter_prompt)
             logger.debug(f"      ✅ Generated {len(content)} characters")
@@ -120,7 +121,7 @@ class BookGenerationAgent:
             logger.error(f"      ❌ Failed to generate chapter: {e}")
             return f"[Error generating Chapter {chapter_num}: {chapter_title}]"
 
-    def _generate_chapters(self, user_prompt: str, chapters: list) -> str:
+    def _generate_chapters(self, user_prompt: str, chapters: list, length_priority: str | None = None) -> str:
         """Generate content for all chapters and combine them."""
         logger.info(f"✍️  Step 3: Generating {len(chapters)} chapters...")
 
@@ -128,7 +129,11 @@ class BookGenerationAgent:
         for i, chapter in enumerate(chapters, 1):
             logger.info(
                 f"   [{i}/{len(chapters)}] Generating Chapter {chapter['number']}...")
-            chapter_content = self._generate_chapter(user_prompt, chapter)
+            chapter_content = self._generate_chapter(
+                user_prompt,
+                chapter,
+                length_priority=length_priority
+            )
 
             # Add chapter header
             chapter_header = f"\n\n{'='*50}\nCHAPTER {chapter['number']}: {chapter['title'].upper()}\n{'='*50}\n\n"
@@ -162,7 +167,43 @@ class BookGenerationAgent:
         logger.debug(f"   ✅ TOC created: {len(toc_content)} characters")
         return toc_content
 
-    def generate_pdf_book(self, user_prompt: str, desired_pages: int | None = None) -> tuple[bytes, str]:
+    def generate_book_content(
+        self,
+        user_prompt: str,
+        length_priority: str | None = None
+    ) -> tuple[str, list, str]:
+        """
+        Generate the book content and metadata without creating a PDF.
+
+        Returns:
+            Tuple of (title, chapters, content)
+        """
+        logger.info(f"🚀 Starting book generation for: {user_prompt[:50]}...")
+        if length_priority is not None:
+            logger.info(f"🧭 Length priority: {length_priority}")
+
+        # Step 1: Generate title
+        title = self._generate_title(user_prompt)
+
+        # Step 2: Generate table of contents
+        chapters = self._generate_toc(user_prompt, length_priority=length_priority)
+
+        # Step 3: Generate all chapters
+        chapter_content = self._generate_chapters(
+            user_prompt,
+            chapters,
+            length_priority=length_priority
+        )
+
+        # Step 4: Create TOC page
+        toc_page = self._create_toc_page(chapters)
+
+        # Combine: TOC page + all chapters
+        content = toc_page + "\n\n" + chapter_content
+
+        return title, chapters, content
+
+    def generate_pdf_book(self, user_prompt: str, length_priority: str | None = None) -> tuple[bytes, str]:
         """
         Generate a complete PDF book from a user prompt using reiteration.
 
@@ -175,30 +216,16 @@ class BookGenerationAgent:
 
         Args:
             user_prompt: User's input describing what the book should be about
-            desired_pages: Optional target page count requested by the caller
+            length_priority: Optional length priority (length, balanced, speed, super fast)
 
         Returns:
             Tuple of (pdf_bytes, title)
         """
-        logger.info(f"🚀 Starting book generation for: {user_prompt[:50]}...")
-        if desired_pages is not None:
-            logger.info(f"📄 Target pages requested: {desired_pages}")
-
         try:
-            # Step 1: Generate title
-            title = self._generate_title(user_prompt)
-
-            # Step 2: Generate table of contents
-            chapters = self._generate_toc(user_prompt)
-
-            # Step 3: Generate all chapters
-            chapter_content = self._generate_chapters(user_prompt, chapters)
-
-            # Step 4: Create TOC page
-            toc_page = self._create_toc_page(chapters)
-
-            # Combine: TOC page + all chapters
-            content = toc_page + "\n\n" + chapter_content
+            title, chapters, content = self.generate_book_content(
+                user_prompt,
+                length_priority=length_priority
+            )
 
             # Step 5: Create PDF
             logger.info("📄 Step 5: Creating PDF...")

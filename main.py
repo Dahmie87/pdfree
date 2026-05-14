@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException  # type: ignore
 from fastapi.responses import FileResponse  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from pydantic import BaseModel
+from typing import Literal
 from agent.book_agent import BookGenerationAgent
 
 # Configure logging
@@ -72,7 +73,8 @@ def sanitize_filename(filename: str) -> str:
 class BookRequest(BaseModel):
     """Request model for book generation."""
     prompt: str
-    pages: int = 20  # Default 20 pages (~5 chapters)
+    length_priority: Literal["length", "balanced",
+                             "speed", "super fast"] | None = "balanced"
 
 
 @app.get("/")
@@ -110,13 +112,13 @@ def generate_book(request: BookRequest):
     Generate a PDF book from a prompt.
 
     Args:
-        request: BookRequest with 'prompt' field and optional 'pages' (default 20)
+        request: BookRequest with 'prompt' field and optional 'length_priority'
 
     Returns:
         PDF file
     """
     logger.info(
-        f"📥 Received request: {request.prompt[:50]}... (pages: {request.pages})")
+        f"📥 Received request: {request.prompt[:50]}... (length: {request.length_priority})")
 
     if not request.prompt or len(request.prompt.strip()) < 5:
         logger.warning("❌ Prompt too short")
@@ -125,19 +127,11 @@ def generate_book(request: BookRequest):
             detail="Prompt must be at least 5 characters long"
         )
 
-    # Validate pages parameter
-    if request.pages < 10 or request.pages > 500:
-        logger.warning(f"❌ Pages out of range: {request.pages}")
-        raise HTTPException(
-            status_code=400,
-            detail="Pages must be between 10 and 500"
-        )
-
     try:
         logger.info("🔄 Starting book generation...")
-        # Generate PDF with specified number of pages
+        # Generate PDF with optional length priority
         pdf_bytes, title = agent.generate_pdf_book(
-            request.prompt, desired_pages=request.pages)
+            request.prompt, length_priority=request.length_priority)
 
         # Save temporarily with sanitized filename
         safe_title = sanitize_filename(title)

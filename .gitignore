@@ -24,6 +24,8 @@ wheels/
 *.pdf
 /tmp/
 /output/
+/outputs/
+/tests/llm_cases_runner.py
 
 # OS
 .DS_Store
