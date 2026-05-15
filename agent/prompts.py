@@ -93,6 +93,27 @@ Start with the chapter introduction, then cover each section thoroughly.
 Do NOT include chapter number or title - just the content.
 Write the chapter content now:"""
 
+FULL_BOOK_PROMPT = """You are a professional book author. Write a complete book about: {topic}
+
+Table of Contents:
+{toc_text}
+
+Length priority: {length_guidance}
+Target total words: approximately {target_words} words
+
+Requirements:
+1. Write the full book following the table of contents structure
+2. Include chapter headers (Chapter 1, Chapter 2, etc.)
+3. Include section headers for each section listed in the TOC
+4. Aim for approximately {target_words} words total (±10%)
+5. Use professional formatting and clear section divisions
+6. Include relevant examples and case studies
+7. Maintain consistent depth and quality throughout
+8. Add practical takeaways in each chapter
+9. Format with double line breaks between major sections
+
+Write the complete book now:"""
+
 
 def get_title_prompt(user_prompt: str) -> str:
     """Get the prompt for title extraction."""
