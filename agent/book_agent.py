@@ -267,7 +267,7 @@ class BookGenerationAgent:
                 length_priority=length_priority
             )
             full_content = self.llm.invoke(full_prompt)
-            
+
             # Only add TOC page for fast, NOT for super_fast
             if length_priority == "fast":
                 toc_page = self._create_toc_page(chapters)

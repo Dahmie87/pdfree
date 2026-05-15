@@ -125,11 +125,13 @@ def _get_length_guidance(length_priority: str | None) -> str:
         return "ULTRA-BRIEF; only essential content; NO elaboration or examples; minimal sections."
     return "Balanced length; clear, practical depth without being exhaustive. Moderate examples."
 
+
 def _get_word_count_target(length_priority: str | None) -> int:
     """Get target word count for the entire book."""
     if length_priority in WORD_COUNT_TARGETS:
         return WORD_COUNT_TARGETS[length_priority]
     return WORD_COUNT_TARGETS["balanced"]
+
 
 def _get_chapter_word_target(length_priority: str | None, num_chapters: int) -> int:
     """Get target word count per chapter."""
