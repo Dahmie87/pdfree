@@ -162,6 +162,7 @@ class PDFGenerator:
         lines = content.split('\n')
         i = 0
         in_toc = False
+        prev_was_sec_id = False
 
         while i < len(lines):
             line = lines[i].strip()
@@ -201,6 +202,19 @@ class PDFGenerator:
                 if not line and i > 0:
                     in_toc = False
 
+            # Check for chapter ID marker [CH#]
+            if line.startswith('[CH') and ']' in line:
+                story.append(PageBreak())
+                prev_was_sec_id = False
+                i += 1
+                continue
+
+            # Check for section ID marker [SEC#.#]
+            if line.startswith('[SEC') and ']' in line:
+                prev_was_sec_id = True
+                i += 1
+                continue
+
             # Check for chapter headers (====CHAPTER X: TITLE====)
             if line.startswith('=') and 'CHAPTER' in line.upper():
                 # Extract chapter number and title
@@ -209,6 +223,7 @@ class PDFGenerator:
                 story.append(
                     Paragraph(chapter_title, self.styles['ChapterHeading']))
                 story.append(Spacer(1, 0.2*inch))
+                prev_was_sec_id = False
                 i += 1
                 continue
 
@@ -217,6 +232,7 @@ class PDFGenerator:
                 story.append(Spacer(1, 0.15*inch))
                 story.append(Paragraph(line, self.styles['SectionHeading']))
                 story.append(Spacer(1, 0.1*inch))
+                prev_was_sec_id = False
                 i += 1
                 continue
 
@@ -229,14 +245,22 @@ class PDFGenerator:
                     i += 1
                     break
 
-                if (current_line.startswith('=') and 'CHAPTER' in current_line.upper()) or self._is_section_header(current_line):
+                if (current_line.startswith('=') and 'CHAPTER' in current_line.upper()) or self._is_section_header(current_line) or (current_line.startswith('[CH') and ']' in current_line) or (current_line.startswith('[SEC') and ']' in current_line):
                     break
 
                 paragraph_lines.append(current_line)
                 i += 1
 
-            # Add paragraph if not empty
-            if paragraph_lines:
+            # Format based on whether this follows a section ID
+            if prev_was_sec_id and paragraph_lines:
+                # This is a section title, format it accordingly
+                title_text = ' '.join(paragraph_lines)
+                story.append(Spacer(1, 0.15*inch))
+                story.append(
+                    Paragraph(title_text, self.styles['SectionHeading']))
+                story.append(Spacer(1, 0.1*inch))
+                prev_was_sec_id = False
+            elif paragraph_lines:
                 para_text = ' '.join(paragraph_lines)
                 story.append(Paragraph(para_text, self.styles['CustomBody']))
                 story.append(Spacer(1, 0.08*inch))

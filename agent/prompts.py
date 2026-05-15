@@ -75,7 +75,9 @@ Chapter Title: {chapter_title}
 Length priority: {length_guidance}
 Target words for this chapter: approximately {chapter_word_target} words
 
-Write a comprehensive, detailed chapter with ALL these sections:
+Write a comprehensive, detailed chapter with ALL these sections. Include clear section headers for readability.
+
+Sections to cover:
 {sections_list}
 
 Requirements:
@@ -83,31 +85,13 @@ Requirements:
 2. Adjust depth based on length priority
 3. Include specific examples and case studies (scale with word count)
 4. Use technical terminology appropriately
-5. Include subsection headers
+5. Include clear subsection headers for each section listed above
 6. Add practical takeaways
 7. Format with double line breaks between sections
 
 Start with the chapter introduction, then cover each section thoroughly.
 Do NOT include chapter number or title - just the content.
 Write the chapter content now:"""
-
-FULL_BOOK_PROMPT = """You are an expert writer. Write the full book content about: {topic}
-
-Use this table of contents:
-{toc_text}
-
-Length priority: {length_guidance}
-Target total content length: approximately {target_words} words
-
-Requirements:
-1. Follow the table of contents order
-2. Aim for exactly {target_words} words total (±5%)
-3. Include clear section headers for each chapter and section
-4. Use double line breaks between sections
-5. Do NOT include the book title or a separate table of contents
-6. For super_fast priority: be ultra-concise, skip examples if needed
-
-Write the full book content now:"""
 
 
 def get_title_prompt(user_prompt: str) -> str:
