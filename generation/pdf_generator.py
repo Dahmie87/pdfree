@@ -7,6 +7,7 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
 from reportlab.lib import colors
 from datetime import datetime
+import re
 
 
 class PDFGenerator:
@@ -182,6 +183,41 @@ class PDFGenerator:
                 i += 1
                 continue
 
+            # Handle Markdown headings (#, ##, ###) and split inline content
+            if line.startswith('#'):
+                m = re.match(r'^(#+)\s*(.*)$', line)
+                if m:
+                    level = len(m.group(1))
+                    rest = m.group(2).strip()
+                    # Try to split header from inline content at first sentence-ending punctuation
+                    parts = re.split(r'([.?!:])\s+', rest, maxsplit=1)
+                    if len(parts) >= 3:
+                        header_text = (parts[0] + parts[1]).strip()
+                        remaining = parts[2].strip()
+                    else:
+                        header_text = rest
+                        remaining = ''
+
+                    if level == 1:
+                        story.append(PageBreak())
+                        story.append(Paragraph(header_text, self.styles['ChapterHeading']))
+                        story.append(Spacer(1, 0.2*inch))
+                    elif level == 2:
+                        story.append(Spacer(1, 0.15*inch))
+                        story.append(Paragraph(header_text, self.styles['SectionHeading']))
+                        story.append(Spacer(1, 0.1*inch))
+                    else:
+                        story.append(Spacer(1, 0.12*inch))
+                        story.append(Paragraph(header_text, self.styles['SubsectionHeading']))
+                        story.append(Spacer(1, 0.08*inch))
+
+                    if remaining:
+                        story.append(Paragraph(remaining, self.styles['CustomBody']))
+                        story.append(Spacer(1, 0.08*inch))
+
+                    i += 1
+                    continue
+
             # Parse TOC entries (Chapter X: Title or • Section)
             if in_toc:
                 if line.startswith("="):
@@ -215,13 +251,26 @@ class PDFGenerator:
                 i += 1
                 continue
 
-            # Check for chapter headers (====CHAPTER X: TITLE====)
-            if line.startswith('=') and 'CHAPTER' in line.upper():
-                # Extract chapter number and title
-                chapter_title = line.strip('=').strip()
+            # Check for chapter headers (lines containing 'CHAPTER') or
+            # the common pattern where a line of === separators surrounds the CHAPTER line.
+            if line.startswith('='):
+                # look ahead for a CHAPTER line after the separator
+                j = i + 1
+                while j < len(lines) and not lines[j].strip():
+                    j += 1
+                if j < len(lines) and 'CHAPTER' in lines[j].upper():
+                    chapter_title = lines[j].strip()
+                    story.append(PageBreak())
+                    story.append(Paragraph(chapter_title, self.styles['ChapterHeading']))
+                    story.append(Spacer(1, 0.2*inch))
+                    prev_was_sec_id = False
+                    i = j + 1
+                    continue
+
+            if line.upper().startswith('CHAPTER '):
+                chapter_title = line
                 story.append(PageBreak())
-                story.append(
-                    Paragraph(chapter_title, self.styles['ChapterHeading']))
+                story.append(Paragraph(chapter_title, self.styles['ChapterHeading']))
                 story.append(Spacer(1, 0.2*inch))
                 prev_was_sec_id = False
                 i += 1
@@ -233,6 +282,13 @@ class PDFGenerator:
                 story.append(Paragraph(line, self.styles['SectionHeading']))
                 story.append(Spacer(1, 0.1*inch))
                 prev_was_sec_id = False
+                i += 1
+                continue
+
+            # Handle simple bullet lines
+            if line.startswith('•') or line.startswith('- '):
+                story.append(Paragraph(line, self.styles['CustomBody']))
+                story.append(Spacer(1, 0.03*inch))
                 i += 1
                 continue
 
