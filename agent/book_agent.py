@@ -132,7 +132,7 @@ class BookGenerationAgent:
         ]
         return default_chapters
 
-    def _generate_chapter(self, user_prompt: str, chapter: dict, length_priority: str | None = None) -> str:
+    def _generate_chapter(self, user_prompt: str, chapter: dict, length_priority: str | None = None, num_chapters: int = 5) -> str:
         """Generate content for a single chapter."""
         chapter_num = chapter["number"]
         chapter_title = chapter["title"]
@@ -146,7 +146,8 @@ class BookGenerationAgent:
                 chapter_num=chapter_num,
                 chapter_title=chapter_title,
                 sections=sections,
-                length_priority=length_priority
+                length_priority=length_priority,
+                num_chapters=num_chapters
             )
             content = self.llm.invoke(chapter_prompt)
             logger.debug(f"      ✅ Generated {len(content)} characters")
@@ -160,13 +161,15 @@ class BookGenerationAgent:
         logger.info(f"✍️  Step 3: Generating {len(chapters)} chapters...")
 
         combined_content = []
+        num_chapters = len(chapters)
         for i, chapter in enumerate(chapters, 1):
             logger.info(
                 f"   [{i}/{len(chapters)}] Generating Chapter {chapter['number']}...")
             chapter_content = self._generate_chapter(
                 user_prompt,
                 chapter,
-                length_priority=length_priority
+                length_priority=length_priority,
+                num_chapters=num_chapters
             )
 
             # Add chapter header
@@ -215,7 +218,7 @@ class BookGenerationAgent:
 
     def _pick_total_calls(self, length_priority: str | None) -> int:
         """Pick a total call count based on priority ranges."""
-        if length_priority == "super fast":
+        if length_priority == "super_fast":
             return 2
         if length_priority == "fast":
             return random.randint(2, 3)
@@ -255,8 +258,8 @@ class BookGenerationAgent:
             user_prompt, length_priority=length_priority)
 
         # Step 3: Generate content (fast path uses a single call)
-        if length_priority in {"fast", "super fast"}:
-            toc_page = self._create_toc_page(chapters)
+        if length_priority in {"fast", "super_fast"}:
+            # For fast/super_fast, use full book generation with explicit length targets
             toc_text = self._format_toc_for_prompt(chapters)
             full_prompt = get_full_book_prompt(
                 topic=user_prompt,
@@ -264,7 +267,14 @@ class BookGenerationAgent:
                 length_priority=length_priority
             )
             full_content = self.llm.invoke(full_prompt)
-            content = toc_page + "\n\n" + full_content
+            
+            # Only add TOC page for fast, NOT for super_fast
+            if length_priority == "fast":
+                toc_page = self._create_toc_page(chapters)
+                content = toc_page + "\n\n" + full_content
+            else:
+                # super_fast: skip TOC page entirely
+                content = full_content
         else:
             chapter_content = self._generate_chapters(
                 user_prompt,
