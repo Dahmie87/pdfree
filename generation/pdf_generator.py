@@ -200,19 +200,23 @@ class PDFGenerator:
 
                     if level == 1:
                         story.append(PageBreak())
-                        story.append(Paragraph(header_text, self.styles['ChapterHeading']))
+                        story.append(
+                            Paragraph(header_text, self.styles['ChapterHeading']))
                         story.append(Spacer(1, 0.2*inch))
                     elif level == 2:
                         story.append(Spacer(1, 0.15*inch))
-                        story.append(Paragraph(header_text, self.styles['SectionHeading']))
+                        story.append(
+                            Paragraph(header_text, self.styles['SectionHeading']))
                         story.append(Spacer(1, 0.1*inch))
                     else:
                         story.append(Spacer(1, 0.12*inch))
-                        story.append(Paragraph(header_text, self.styles['SubsectionHeading']))
+                        story.append(
+                            Paragraph(header_text, self.styles['SubsectionHeading']))
                         story.append(Spacer(1, 0.08*inch))
 
                     if remaining:
-                        story.append(Paragraph(remaining, self.styles['CustomBody']))
+                        story.append(
+                            Paragraph(remaining, self.styles['CustomBody']))
                         story.append(Spacer(1, 0.08*inch))
 
                     i += 1
@@ -261,7 +265,8 @@ class PDFGenerator:
                 if j < len(lines) and 'CHAPTER' in lines[j].upper():
                     chapter_title = lines[j].strip()
                     story.append(PageBreak())
-                    story.append(Paragraph(chapter_title, self.styles['ChapterHeading']))
+                    story.append(
+                        Paragraph(chapter_title, self.styles['ChapterHeading']))
                     story.append(Spacer(1, 0.2*inch))
                     prev_was_sec_id = False
                     i = j + 1
@@ -270,7 +275,8 @@ class PDFGenerator:
             if line.upper().startswith('CHAPTER '):
                 chapter_title = line
                 story.append(PageBreak())
-                story.append(Paragraph(chapter_title, self.styles['ChapterHeading']))
+                story.append(
+                    Paragraph(chapter_title, self.styles['ChapterHeading']))
                 story.append(Spacer(1, 0.2*inch))
                 prev_was_sec_id = False
                 i += 1
