@@ -88,6 +88,26 @@ Requirements:
 5. Include clear subsection headers for each section listed above
 6. Add practical takeaways
 7. Format with double line breaks between sections
+8. Use the following exact header formats (regular expressions) for titles and section markers. The LLM must follow these regexes when emitting headers and IDs:
+
+    - Chapter header (plain line): ^CHAPTER\s+\d+:.*$
+    - Markdown H1 (chapter-like): ^#\s+.+$
+    - Section header (plain/title line): ^[A-Z][A-Za-z0-9\s,:\-()]{0,80}$  # human-readable title
+    - Section ID marker: ^\[SEC\d+\.\d+\]\s*.*$
+    - Chapter ID marker: ^\[CH\d+\]\s*.*$
+
+    When you include a header, put the header text on its own line (no inline content on the same line). If there is inline explanatory content immediately following a header, place it on the next line.
+
+9. Special-character filtering: Remove or normalize any sequence of special characters that does not match the allowed header or ID patterns above. Examples to remove or convert:
+
+    - Markdown inline emphasis like `**bold**`, `*italic*`: convert to plain header or plain text (no Markdown markers).
+    - Repeated separators or decorations like `*****`, `-----`, `####` or `~~~`: strip them unless they are an allowed header/ID.
+    - Inline bullet markers (e.g., `* Item`) should be output as simple bullet lines (`• Item`) or paragraphs, not with raw asterisks.
+
+10. Output rules summary:
+    - Only use the header/ID formats specified above for titles and section markers.
+    - Do not emit any other bracketed or punctuation-only lines.
+    - Ensure subtopic headings (inline or bolded in source) are output as distinct section/subsection headers on their own lines.
 
 Start with the chapter introduction, then cover each section thoroughly.
 Do NOT include chapter number or title - just the content.
@@ -113,6 +133,7 @@ Requirements:
 9. Format with double line breaks between major sections
 
 Write the complete book now:"""
+
 
 
 def get_title_prompt(user_prompt: str) -> str:
