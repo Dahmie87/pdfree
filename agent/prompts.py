@@ -132,6 +132,31 @@ Requirements:
 8. Add practical takeaways in each chapter
 9. Format with double line breaks between major sections
 
+Header and output rules (strict):
+
+    - Use the following exact header formats (regular expressions) for titles and section markers. The LLM must follow these regexes when emitting headers and IDs:
+
+      - Chapter header (plain line): ^CHAPTER\s+\d+:.*$
+      - Markdown H1 (chapter-like): ^#\s+.+$
+      - Section header (plain/title line): ^[A-Z][A-Za-z0-9\s,:\-()]{0,80}$
+      - Section ID marker: ^\[SEC\d+\.\d+\]\s*.*$
+      - Chapter ID marker: ^\[CH\d+\]\s*.*$
+
+    - When including a header, put the header text on its own line with no inline content. If explanatory text follows immediately, place it on the next line.
+
+Special-character filtering and normalization:
+
+    - Strip or normalize any sequence of special characters that does not match the allowed header or ID patterns above.
+    - Convert inline markdown emphasis like `**bold**` or `*italic*` to plain text (remove markers).
+    - Remove repeated decorations like `*****`, `-----`, `####`, or `~~~` unless they match an allowed header pattern.
+    - Convert raw list markers such as `* Item` or `- Item` to simple bullet lines `• Item` or plain paragraphs.
+    - Do not emit other bracketed or punctuation-only lines that don't carry semantic meaning.
+
+Output rules summary:
+    - Only use the header/ID formats specified above for titles and section markers.
+    - Ensure subtopic headings (inline or bolded in source) are output as distinct section/subsection headers on their own lines.
+    - Ensure the TOC matches the chapter and section headers used in the content.
+
 Write the complete book now:"""
 
 
