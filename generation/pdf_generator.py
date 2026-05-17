@@ -173,6 +173,12 @@ class PDFGenerator:
                 i += 1
                 continue
 
+            # Explicit page break inserted by the agent
+            if line.upper() == '[PAGE_BREAK]':
+                story.append(PageBreak())
+                i += 1
+                continue
+
             # Check for TABLE OF CONTENTS
             if "TABLE OF CONTENTS" in line.upper():
                 in_toc = True
@@ -262,7 +268,6 @@ class PDFGenerator:
                     j += 1
                 if j < len(lines) and 'CHAPTER' in lines[j].upper():
                     chapter_title = lines[j].strip()
-                    story.append(PageBreak())
                     story.append(
                         Paragraph(chapter_title, self.styles['ChapterHeading']))
                     story.append(Spacer(1, 0.2*inch))
@@ -272,7 +277,6 @@ class PDFGenerator:
 
             if line.upper().startswith('CHAPTER '):
                 chapter_title = line
-                story.append(PageBreak())
                 story.append(
                     Paragraph(chapter_title, self.styles['ChapterHeading']))
                 story.append(Spacer(1, 0.2*inch))

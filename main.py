@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from pydantic import BaseModel
 from typing import Literal
 from agent.book_agent import BookGenerationAgent
+from models.llm import is_groq_daily_quota_error
 
 # Configure logging
 logging.basicConfig(
@@ -41,6 +42,11 @@ app.add_middleware(
 )
 
 logger.info("✅ CORS middleware configured - allowing all origins")
+
+
+def _is_rate_limit_error(error: Exception) -> bool:
+    """Detect Groq daily quota exhaustion from the structured error payload."""
+    return is_groq_daily_quota_error(error)
 
 
 # Initialize agent
@@ -152,6 +158,11 @@ def generate_book(request: BookRequest):
 
     except Exception as e:
         logger.error(f"❌ Error generating book: {str(e)}", exc_info=True)
+        if _is_rate_limit_error(e):
+            raise HTTPException(
+                status_code=429,
+                detail="Groq quota exhausted. Please try again later."
+            )
         raise HTTPException(
             status_code=500,
             detail=f"Error generating book: {str(e)}"

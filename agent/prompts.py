@@ -3,7 +3,7 @@
 # Word count targets per "page" (1 page ≈ 250 words typical formatting)
 WORD_COUNT_TARGETS = {
     "super_fast": 1500,  # ~6 pages
-    "fast": 2500,        # ~10 pages
+    "fast": 3000,        # ~12 pages
     "balanced": 5000,    # ~20 pages
     "length": 8000,      # ~32 pages
 }

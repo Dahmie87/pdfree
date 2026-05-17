@@ -4,6 +4,7 @@ import logging
 import json
 import random
 from models.llm import get_llm
+from models.llm import is_groq_daily_quota_error
 from generation.pdf_generator import PDFGenerator
 from agent.prompts import (
     get_title_prompt,
@@ -15,6 +16,11 @@ from agent.prompts import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _is_rate_limit_error(error: Exception) -> bool:
+    """Return True when the Groq call failed because the daily quota is exhausted."""
+    return is_groq_daily_quota_error(error)
 
 
 class BookGenerationAgent:
@@ -155,6 +161,8 @@ class BookGenerationAgent:
             return content
         except Exception as e:
             logger.error(f"      ❌ Failed to generate chapter: {e}")
+            if _is_rate_limit_error(e):
+                raise
             return f"[Error generating Chapter {chapter_num}: {chapter_title}]"
 
     def _generate_chapters(self, user_prompt: str, chapters: list, length_priority: str | None = None) -> str:
@@ -173,8 +181,13 @@ class BookGenerationAgent:
                 num_chapters=num_chapters
             )
 
-            # Add chapter header
-            chapter_header = f"\n\n{'='*50}\nCHAPTER {chapter['number']}: {chapter['title'].upper()}\n{'='*50}\n\n"
+            # Add chapter header and force the next chapter to start on a new page.
+            chapter_header = (
+                f"\n\n[PAGE_BREAK]\n"
+                f"{'='*50}\n"
+                f"CHAPTER {chapter['number']}: {chapter['title'].upper()}\n"
+                f"{'='*50}\n\n"
+            )
             combined_content.append(chapter_header + chapter_content)
 
         logger.info(f"   ✅ All {len(chapters)} chapters generated!")
@@ -182,7 +195,8 @@ class BookGenerationAgent:
 
     def _generate_super_fast_book(self, user_prompt: str, length_priority: str | None = None) -> tuple[str, list, str]:
         """Generate the entire super_fast book in one LLM call."""
-        logger.info("⚡ Step 1-3: Generating super_fast book in a single call...")
+        logger.info(
+            "⚡ Step 1-3: Generating super_fast book in a single call...")
         prompt = get_super_fast_book_prompt(
             user_prompt,
             length_priority=length_priority,
@@ -194,16 +208,33 @@ class BookGenerationAgent:
             title = str(data.get("title", "")).strip() or user_prompt.strip()
             content = str(data.get("content", "")).strip() or response.strip()
         except json.JSONDecodeError:
-            logger.warning("   ⚠️ super_fast response was not valid JSON; using raw text fallback")
+            logger.warning(
+                "   ⚠️ super_fast response was not valid JSON; using raw text fallback")
             title = user_prompt.strip()
             content = response.strip()
+
+        content = self._paginate_book_content(content)
 
         chapters = [
             {"number": 1, "title": "Chapter 1", "sections": []},
             {"number": 2, "title": "Chapter 2", "sections": []},
         ]
-        logger.info(f"   ✅ super_fast generated in 1 call: {len(content)} characters")
+        logger.info(
+            f"   ✅ super_fast generated in 1 call: {len(content)} characters")
         return title, chapters, content
+
+    def _paginate_book_content(self, content: str) -> str:
+        """Insert explicit page-break markers before chapter starts."""
+        paginated_lines = []
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped and (
+                stripped.upper().startswith("CHAPTER ")
+                or (stripped.startswith("#") and "CHAPTER" in stripped.upper())
+            ):
+                paginated_lines.append("[PAGE_BREAK]")
+            paginated_lines.append(line)
+        return "\n".join(paginated_lines).lstrip()
 
     def _create_toc_page(self, chapters: list) -> str:
         """Create a table of contents page from the chapters list."""
@@ -299,6 +330,7 @@ class BookGenerationAgent:
                 length_priority=length_priority
             )
             full_content = self.llm.invoke(full_prompt)
+            full_content = self._paginate_book_content(full_content)
 
             toc_page = self._create_toc_page(chapters)
             content = toc_page + "\n\n" + full_content
