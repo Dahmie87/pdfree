@@ -12,6 +12,37 @@ TITLE_EXTRACTION_PROMPT = """Extract a concise, compelling title for a book base
 
 Provide ONLY the title, nothing else. Maximum 10 words."""
 
+SUPER_FAST_BOOK_PROMPT = r"""You are a professional book author.
+
+Write a complete, compact book about: {user_prompt}
+
+Length priority: {length_guidance}
+Target total words: approximately {target_words} words
+
+Critical requirements:
+1. Make exactly one response that contains the entire book.
+2. Do not create a table of contents page.
+3. Do not create more than 2 chapters.
+4. Each chapter should be substantial enough to read like real book content, not a fragment.
+5. Keep the writing concise, coherent, and complete.
+6. Use chapter headers in the form `CHAPTER 1: ...` and `CHAPTER 2: ...`.
+7. Put chapter headings on their own lines.
+8. Keep section headings minimal; do not add lots of tiny subsections.
+9. Return ONLY valid JSON with this exact shape:
+
+{{
+    "title": "Book Title",
+    "content": "Full book text here"
+}}
+
+Content rules:
+- The `content` field must contain the entire book text.
+- Start the book immediately with the first chapter header.
+- Keep the whole book compact and polished.
+- No commentary, no markdown fences, no extra keys.
+
+Write the super fast book now:"""
+
 TITLE_TOC_PROMPT = """You are a professional book editor. Create a title and table of contents for a book about: {user_prompt}
 
 Length priority: {length_guidance}
@@ -175,6 +206,15 @@ Write the complete book now:"""
 def get_title_prompt(user_prompt: str) -> str:
     """Get the prompt for title extraction."""
     return TITLE_EXTRACTION_PROMPT.format(user_prompt=user_prompt)
+
+
+def get_super_fast_book_prompt(user_prompt: str, length_priority: str | None = None) -> str:
+    """Get the one-shot prompt for super fast full-book generation."""
+    return SUPER_FAST_BOOK_PROMPT.format(
+        user_prompt=user_prompt,
+        length_guidance=_get_length_guidance(length_priority),
+        target_words=_get_word_count_target(length_priority),
+    )
 
 
 def _get_length_guidance(length_priority: str | None) -> str:

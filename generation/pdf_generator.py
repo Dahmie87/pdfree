@@ -315,10 +315,15 @@ class PDFGenerator:
             if prev_was_sec_id and paragraph_lines:
                 # This is a section title, format it accordingly
                 title_text = ' '.join(paragraph_lines)
-                story.append(Spacer(1, 0.15*inch))
-                story.append(
-                    Paragraph(title_text, self.styles['SectionHeading']))
-                story.append(Spacer(1, 0.1*inch))
+                if self._is_section_header(title_text):
+                    story.append(Spacer(1, 0.15*inch))
+                    story.append(
+                        Paragraph(title_text, self.styles['SectionHeading']))
+                    story.append(Spacer(1, 0.1*inch))
+                else:
+                    story.append(
+                        Paragraph(title_text, self.styles['CustomBody']))
+                    story.append(Spacer(1, 0.08*inch))
                 prev_was_sec_id = False
             elif paragraph_lines:
                 para_text = ' '.join(paragraph_lines)
@@ -329,12 +334,25 @@ class PDFGenerator:
 
     def _is_section_header(self, line: str) -> bool:
         """Check if a line looks like a section header."""
-        # Short lines (less than 80 chars) with mostly capitalized words
-        if len(line) < 80:
-            words = line.split()
-            if len(words) <= 6:  # Max 6 words for header
-                # Count uppercase words
-                caps_words = sum(1 for w in words if w[0].isupper())
-                if caps_words >= len(words) * 0.7:  # At least 70% uppercase
-                    return True
-        return False
+        line = line.strip()
+        if not line or len(line) > 80:
+            return False
+
+        # Do not treat normal prose as a heading.
+        if line.endswith(('.', '!', '?')):
+            return False
+
+        words = line.split()
+        if not 1 <= len(words) <= 6:
+            return False
+
+        # Require most words to look title-cased or acronym-like.
+        title_words = 0
+        for word in words:
+            clean_word = re.sub(r'[^A-Za-z0-9-]', '', word)
+            if not clean_word:
+                continue
+            if clean_word.isupper() or clean_word[0].isupper():
+                title_words += 1
+
+        return title_words >= max(1, int(len(words) * 0.8))

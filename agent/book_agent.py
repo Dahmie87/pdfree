@@ -11,6 +11,7 @@ from agent.prompts import (
     get_toc_prompt,
     get_chapter_prompt,
     get_full_book_prompt,
+    get_super_fast_book_prompt,
 )
 
 logger = logging.getLogger(__name__)
@@ -179,6 +180,31 @@ class BookGenerationAgent:
         logger.info(f"   ✅ All {len(chapters)} chapters generated!")
         return "".join(combined_content)
 
+    def _generate_super_fast_book(self, user_prompt: str, length_priority: str | None = None) -> tuple[str, list, str]:
+        """Generate the entire super_fast book in one LLM call."""
+        logger.info("⚡ Step 1-3: Generating super_fast book in a single call...")
+        prompt = get_super_fast_book_prompt(
+            user_prompt,
+            length_priority=length_priority,
+        )
+        response = self.llm.invoke(prompt)
+
+        try:
+            data = json.loads(response)
+            title = str(data.get("title", "")).strip() or user_prompt.strip()
+            content = str(data.get("content", "")).strip() or response.strip()
+        except json.JSONDecodeError:
+            logger.warning("   ⚠️ super_fast response was not valid JSON; using raw text fallback")
+            title = user_prompt.strip()
+            content = response.strip()
+
+        chapters = [
+            {"number": 1, "title": "Chapter 1", "sections": []},
+            {"number": 2, "title": "Chapter 2", "sections": []},
+        ]
+        logger.info(f"   ✅ super_fast generated in 1 call: {len(content)} characters")
+        return title, chapters, content
+
     def _create_toc_page(self, chapters: list) -> str:
         """Create a table of contents page from the chapters list."""
         logger.info("📚 Creating table of contents page...")
@@ -219,7 +245,7 @@ class BookGenerationAgent:
     def _pick_total_calls(self, length_priority: str | None) -> int:
         """Pick a total call count based on priority ranges."""
         if length_priority == "super_fast":
-            return 2
+            return 1
         if length_priority == "fast":
             return random.randint(2, 3)
         if length_priority == "length":
@@ -254,11 +280,17 @@ class BookGenerationAgent:
         title = self._generate_title(user_prompt)
 
         # Step 2: Generate table of contents
+        if length_priority == "super_fast":
+            return self._generate_super_fast_book(
+                user_prompt,
+                length_priority=length_priority,
+            )
+
         chapters = self._generate_toc(
             user_prompt, length_priority=length_priority)
 
         # Step 3: Generate content (fast path uses a single call)
-        if length_priority in {"fast", "super_fast"}:
+        if length_priority == "fast":
             # For fast/super_fast, use full book generation with explicit length targets
             toc_text = self._format_toc_for_prompt(chapters)
             full_prompt = get_full_book_prompt(
@@ -268,13 +300,8 @@ class BookGenerationAgent:
             )
             full_content = self.llm.invoke(full_prompt)
 
-            # Only add TOC page for fast, NOT for super_fast
-            if length_priority == "fast":
-                toc_page = self._create_toc_page(chapters)
-                content = toc_page + "\n\n" + full_content
-            else:
-                # super_fast: skip TOC page entirely
-                content = full_content
+            toc_page = self._create_toc_page(chapters)
+            content = toc_page + "\n\n" + full_content
         else:
             chapter_content = self._generate_chapters(
                 user_prompt,
