@@ -42,6 +42,7 @@ app.add_middleware(
 
 logger.info("✅ CORS middleware configured - allowing all origins")
 
+
 # Initialize agent
 logger.info("🚀 Initializing BookGenerationAgent...")
 try:
@@ -56,7 +57,7 @@ def sanitize_filename(filename: str) -> str:
     """
     Remove illegal characters from filename for Windows/Unix compatibility.
 
-    Illegal characters: < > : " | ? * / \ and control characters
+    Illegal characters: < > : " | ? * plus slash and backslash, and control characters
     """
     # Remove illegal characters
     illegal_chars = r'[<>:"|?*\\/]'

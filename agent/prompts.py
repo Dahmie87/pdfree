@@ -68,7 +68,7 @@ JSON Format (EXACTLY):
 
 Generate the table of contents now:"""
 
-CHAPTER_CONTENT_PROMPT = """You are an expert writer creating Chapter {chapter_num} for a professional book about: {topic}
+CHAPTER_CONTENT_PROMPT = r"""You are an expert writer creating Chapter {chapter_num} for a professional book about: {topic}
 
 Chapter Title: {chapter_title}
 
@@ -76,6 +76,13 @@ Length priority: {length_guidance}
 Target words for this chapter: approximately {chapter_word_target} words
 
 Write a comprehensive, detailed chapter with ALL these sections. Include clear section headers for readability.
+
+Use this exact sequence for the chapter body:
+1. Start with the chapter body only; do not repeat the chapter title line.
+2. Write the opening paragraph.
+3. For each subtitle/section, put the subtitle on its own line.
+4. Put the supporting text below the subtitle after a blank line.
+5. Never place a subtitle inline with a paragraph, and never merge a subtitle into body text.
 
 Sections to cover:
 {sections_list}
@@ -85,14 +92,14 @@ Requirements:
 2. Adjust depth based on length priority
 3. Include specific examples and case studies (scale with word count)
 4. Use technical terminology appropriately
-5. Include clear subsection headers for each section listed above
+5. Include clear subsection headers for each section listed above, each on its own line
 6. Add practical takeaways
 7. Format with double line breaks between sections
 8. Use the following exact header formats (regular expressions) for titles and section markers. The LLM must follow these regexes when emitting headers and IDs:
 
     - Chapter header (plain line): ^CHAPTER\s+\d+:.*$
     - Markdown H1 (chapter-like): ^#\s+.+$
-    - Section header (plain/title line): ^[A-Z][A-Za-z0-9\s,:\-()]{0,80}$  # human-readable title
+    - Section header (plain/title line): ^[A-Z][A-Za-z0-9\s,:\-()]{{0,80}}$  # human-readable title
     - Section ID marker: ^\[SEC\d+\.\d+\]\s*.*$
     - Chapter ID marker: ^\[CH\d+\]\s*.*$
 
@@ -108,12 +115,11 @@ Requirements:
     - Only use the header/ID formats specified above for titles and section markers.
     - Do not emit any other bracketed or punctuation-only lines.
     - Ensure subtopic headings (inline or bolded in source) are output as distinct section/subsection headers on their own lines.
-
 Start with the chapter introduction, then cover each section thoroughly.
 Do NOT include chapter number or title - just the content.
 Write the chapter content now:"""
 
-FULL_BOOK_PROMPT = """You are a professional book author. Write a complete book about: {topic}
+FULL_BOOK_PROMPT = r"""You are a professional book author. Write a complete book about: {topic}
 
 Table of Contents:
 {toc_text}
@@ -131,6 +137,11 @@ Requirements:
 7. Maintain consistent depth and quality throughout
 8. Add practical takeaways in each chapter
 9. Format with double line breaks between major sections
+10. Keep chapter titles, subtitles, and body text in this exact order:
+    - chapter title on its own line
+    - opening paragraph
+    - subtitle/section title on its own line
+    - body text below it after a blank line
 
 Header and output rules (strict):
 
@@ -138,11 +149,13 @@ Header and output rules (strict):
 
       - Chapter header (plain line): ^CHAPTER\s+\d+:.*$
       - Markdown H1 (chapter-like): ^#\s+.+$
-      - Section header (plain/title line): ^[A-Z][A-Za-z0-9\s,:\-()]{0,80}$
+    - Section header (plain/title line): ^[A-Z][A-Za-z0-9\s,:\-()]{{0,80}}$
       - Section ID marker: ^\[SEC\d+\.\d+\]\s*.*$
       - Chapter ID marker: ^\[CH\d+\]\s*.*$
 
     - When including a header, put the header text on its own line with no inline content. If explanatory text follows immediately, place it on the next line.
+    - Do not merge subtitles into the body text.
+    - Do not place subtitle text inline with a paragraph.
 
 Special-character filtering and normalization:
 
@@ -156,9 +169,7 @@ Output rules summary:
     - Only use the header/ID formats specified above for titles and section markers.
     - Ensure subtopic headings (inline or bolded in source) are output as distinct section/subsection headers on their own lines.
     - Ensure the TOC matches the chapter and section headers used in the content.
-
 Write the complete book now:"""
-
 
 
 def get_title_prompt(user_prompt: str) -> str:

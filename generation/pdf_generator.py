@@ -199,7 +199,6 @@ class PDFGenerator:
                         remaining = ''
 
                     if level == 1:
-                        story.append(PageBreak())
                         story.append(
                             Paragraph(header_text, self.styles['ChapterHeading']))
                         story.append(Spacer(1, 0.2*inch))
@@ -244,7 +243,6 @@ class PDFGenerator:
 
             # Check for chapter ID marker [CH#]
             if line.startswith('[CH') and ']' in line:
-                story.append(PageBreak())
                 prev_was_sec_id = False
                 i += 1
                 continue
