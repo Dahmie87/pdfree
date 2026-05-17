@@ -3,6 +3,7 @@
 import os
 import logging
 import re
+import time
 from dotenv import load_dotenv  # type: ignore
 from fastapi import FastAPI, HTTPException  # type: ignore
 from fastapi.responses import FileResponse  # type: ignore
@@ -122,7 +123,7 @@ def generate_book(request: BookRequest):
         request: BookRequest with 'prompt' field and optional 'length_priority'
 
     Returns:
-        PDF file
+        PDF file with generation time in response header
     """
     logger.info(
         f"📥 Received request: {request.prompt[:50]}... (length: {request.length_priority})")
@@ -137,7 +138,7 @@ def generate_book(request: BookRequest):
     try:
         logger.info("🔄 Starting book generation...")
         # Generate PDF with optional length priority
-        pdf_bytes, title = agent.generate_pdf_book(
+        pdf_bytes, title, generation_time = agent.generate_pdf_book(
             request.prompt, length_priority=request.length_priority)
 
         # Save temporarily with sanitized filename
@@ -150,11 +151,18 @@ def generate_book(request: BookRequest):
             f.write(pdf_bytes)
 
         logger.info(f"✅ PDF saved successfully: {len(pdf_bytes)} bytes")
-        return FileResponse(
+
+        # Create response with timing header
+        response = FileResponse(
             path=filepath,
             filename=filename,
             media_type="application/pdf"
         )
+        # Add custom header with generation time
+        response.headers["X-Generation-Time"] = f"{generation_time:.2f}"
+        response.headers["X-Generation-Time-Unit"] = "seconds"
+
+        return response
 
     except Exception as e:
         logger.error(f"❌ Error generating book: {str(e)}", exc_info=True)

@@ -3,6 +3,7 @@
 import logging
 import json
 import random
+import time
 from models.llm import get_llm
 from models.llm import is_groq_daily_quota_error
 from generation.pdf_generator import PDFGenerator
@@ -349,7 +350,7 @@ class BookGenerationAgent:
 
         return title, chapters, content
 
-    def generate_pdf_book(self, user_prompt: str, length_priority: str | None = None) -> tuple[bytes, str]:
+    def generate_pdf_book(self, user_prompt: str, length_priority: str | None = None) -> tuple[bytes, str, float]:
         """
         Generate a complete PDF book from a user prompt using reiteration.
 
@@ -365,8 +366,9 @@ class BookGenerationAgent:
             length_priority: Optional length priority (length, balanced, speed, super fast)
 
         Returns:
-            Tuple of (pdf_bytes, title)
+            Tuple of (pdf_bytes, title, total_time_seconds)
         """
+        start_time = time.time()
         try:
             title, chapters, content = self.generate_book_content(
                 user_prompt,
@@ -389,8 +391,10 @@ class BookGenerationAgent:
                 logger.error(f"   ❌ PDF generation failed: {e}")
                 raise
 
-            logger.info("✅ Book generation complete!")
-            return pdf_bytes, title
+            total_time = time.time() - start_time
+            logger.info(
+                f"✅ Book generation complete! Total time: {total_time:.2f}s")
+            return pdf_bytes, title, total_time
         except Exception as e:
             logger.error(f"❌ Book generation failed: {e}")
             raise
