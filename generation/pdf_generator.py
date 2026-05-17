@@ -4,7 +4,8 @@ from io import BytesIO
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, PageTemplate, BaseDocTemplate, Frame
+from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from datetime import datetime
 import re
@@ -109,6 +110,25 @@ class PDFGenerator:
             borderColor=colors.HexColor('#1f4788')
         ))
 
+    def _add_page_number(self, canvas_obj, doc):
+        """Add page number to the footer of each page."""
+        canvas_obj.saveState()
+        canvas_obj.setFont("Helvetica", 9)
+        canvas_obj.setFillColor(colors.HexColor('#666666'))
+        
+        # Get page number
+        page_num = doc.page
+        
+        # Draw page number at bottom center
+        page_width = self.page_size[0]
+        canvas_obj.drawCentredString(
+            page_width / 2.0,
+            0.5 * inch,
+            f"Page {page_num}"
+        )
+        
+        canvas_obj.restoreState()
+
     def generate_pdf(self, title: str, content: str, author: str = "AI Generated") -> bytes:
         """
         Generate PDF from content with proper chapter formatting.
@@ -123,17 +143,42 @@ class PDFGenerator:
         """
         pdf_buffer = BytesIO()
 
-        # Create PDF document
-        doc = SimpleDocTemplate(
+        # Create page template with page numbers in footer
+        left_margin = 0.75 * inch
+        right_margin = 0.75 * inch
+        top_margin = 1 * inch
+        bottom_margin = 1 * inch  # Increased to accommodate page number
+        
+        # Define frame for content
+        frame = Frame(
+            left_margin,
+            bottom_margin,
+            self.page_size[0] - left_margin - right_margin,
+            self.page_size[1] - top_margin - bottom_margin,
+            id='normal'
+        )
+        
+        # Create page template with page number callback
+        page_template = PageTemplate(
+            id='standard',
+            frames=[frame],
+            onPage=self._add_page_number
+        )
+        
+        # Create PDF document using BaseDocTemplate
+        doc = BaseDocTemplate(
             pdf_buffer,
             pagesize=self.page_size,
-            rightMargin=0.75*inch,
-            leftMargin=0.75*inch,
-            topMargin=1*inch,
-            bottomMargin=0.75*inch,
+            rightMargin=right_margin,
+            leftMargin=left_margin,
+            topMargin=top_margin,
+            bottomMargin=bottom_margin,
             title=title,
             author=author
         )
+        
+        # Add page template
+        doc.addPageTemplates([page_template])
 
         # Build story (content elements)
         story = []
