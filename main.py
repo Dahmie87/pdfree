@@ -83,6 +83,7 @@ class BookRequest(BaseModel):
     prompt: str
     length_priority: Literal["length", "balanced",
                              "fast", "super_fast"] | None = "balanced"
+    filename: str | None = None  # Optional custom filename (without .pdf extension)
 
 
 @app.get("/")
@@ -120,7 +121,7 @@ def generate_book(request: BookRequest):
     Generate a PDF book from a prompt.
 
     Args:
-        request: BookRequest with 'prompt' field and optional 'length_priority'
+        request: BookRequest with 'prompt' field, optional 'length_priority', and optional 'filename'
 
     Returns:
         PDF file with generation time in response header
@@ -142,8 +143,15 @@ def generate_book(request: BookRequest):
             request.prompt, length_priority=request.length_priority)
 
         # Save temporarily with sanitized filename
-        safe_title = sanitize_filename(title)
-        filename = f"book_{safe_title}.pdf"
+        # Use provided filename or generate from title
+        if request.filename:
+            # Sanitize provided filename and add .pdf extension
+            safe_filename = sanitize_filename(request.filename)
+            filename = f"{safe_filename}.pdf"
+        else:
+            # Generate filename from title
+            safe_title = sanitize_filename(title)
+            filename = f"book_{safe_title}.pdf"
         filepath = f"/tmp/{filename}" if os.path.exists("/tmp") else filename
 
         logger.info(f"💾 Saving PDF to: {filepath}")
