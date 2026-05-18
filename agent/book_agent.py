@@ -2,6 +2,7 @@
 
 import logging
 import json
+import re
 import random
 import time
 from models.llm import get_llm
@@ -203,16 +204,35 @@ class BookGenerationAgent:
             length_priority=length_priority,
         )
         response = self.llm.invoke(prompt)
-
+        # Attempt to robustly extract JSON payload from the LLM response.
+        data = None
         try:
             data = json.loads(response)
-            title = str(data.get("title", "")).strip() or user_prompt.strip()
-            content = str(data.get("content", "")).strip() or response.strip()
         except json.JSONDecodeError:
+            # Try to find a JSON object substring inside the response
+            m = re.search(r"(\{.*\})", response, re.DOTALL)
+            if m:
+                try:
+                    data = json.loads(m.group(1))
+                except json.JSONDecodeError:
+                    data = None
+
+        if data:
+            title = str(data.get("title", "")).strip()
+            content = str(data.get("content", "")).strip()
+        else:
             logger.warning(
                 "   ⚠️ super_fast response was not valid JSON; using raw text fallback")
-            title = user_prompt.strip()
+            title = ""
             content = response.strip()
+
+        # If title is missing or looks identical to the prompt, try a lightweight title extraction.
+        if not title or title.strip() == user_prompt.strip():
+            try:
+                title = self._generate_title(user_prompt)
+                logger.info(f"   ℹ️ Regenerated title for super_fast: {title}")
+            except Exception:
+                title = user_prompt.strip()
 
         content = self._paginate_book_content(content)
 

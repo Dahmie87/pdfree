@@ -83,7 +83,10 @@ class BookRequest(BaseModel):
     prompt: str
     length_priority: Literal["length", "balanced",
                              "fast", "super_fast"] | None = "balanced"
-    filename: str | None = None  # Optional custom filename (without .pdf extension)
+    # Optional custom filename (without .pdf extension)
+    filename: str | None = None
+    # Optional client-provided version string (e.g. "pdfree:1.3")
+    version: str | None = None
 
 
 @app.get("/")
@@ -160,7 +163,10 @@ def generate_book(request: BookRequest):
 
         logger.info(f"✅ PDF saved successfully: {len(pdf_bytes)} bytes")
 
-        # Create response with timing header
+        # Determine which version string to report (client-provided or current)
+        used_version = request.version if request.version else "pdfree:1.3"
+
+        # Create response with timing and version headers
         response = FileResponse(
             path=filepath,
             filename=filename,
@@ -169,6 +175,8 @@ def generate_book(request: BookRequest):
         # Add custom header with generation time
         response.headers["X-Generation-Time"] = f"{generation_time:.2f}"
         response.headers["X-Generation-Time-Unit"] = "seconds"
+        # Report the version used for this request (does not change runtime behavior)
+        response.headers["X-PDFree-Version"] = used_version
 
         return response
 

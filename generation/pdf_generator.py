@@ -9,6 +9,9 @@ from reportlab.lib import colors
 import random
 from datetime import datetime
 import re
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+import os
 
 
 class PDFGenerator:
@@ -21,6 +24,25 @@ class PDFGenerator:
 
     def _setup_custom_styles(self):
         """Setup custom paragraph styles for better formatting."""
+        # Register Roboto fonts if available, else fall back to built-ins
+        repo_root = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), '..', '..'))
+        fonts_dir = os.path.join(repo_root, 'fonts')
+        body_font = 'Helvetica'
+        bold_font = 'Helvetica-Bold'
+        try:
+            roboto_reg = False
+            roboto_regular = os.path.join(fonts_dir, 'Roboto-Regular.ttf')
+            roboto_bold = os.path.join(fonts_dir, 'Roboto-Bold.ttf')
+            if os.path.exists(roboto_regular) and os.path.exists(roboto_bold):
+                pdfmetrics.registerFont(TTFont('Roboto', roboto_regular))
+                pdfmetrics.registerFont(TTFont('Roboto-Bold', roboto_bold))
+                body_font = 'Roboto'
+                bold_font = 'Roboto-Bold'
+                roboto_reg = True
+        except Exception:
+            roboto_reg = False
+
         # Choose a dark accent color for titles (randomized per generator instance)
         accent_colors = [
             '#1f4788',  # deep blue (original)
@@ -35,8 +57,8 @@ class PDFGenerator:
         self.styles.add(ParagraphStyle(
             name='CustomTitle',
             parent=self.styles['Heading1'],
-            fontSize=36,
-            fontName='Times-Bold',
+            fontSize=40,
+            fontName=bold_font,
             textColor=title_color,
             spaceAfter=30,
             spaceBefore=30,
@@ -47,8 +69,8 @@ class PDFGenerator:
         self.styles.add(ParagraphStyle(
             name='CustomSubtitle',
             parent=self.styles['Heading2'],
-            fontSize=14,
-            fontName='Times-Roman',
+            fontSize=15,
+            fontName=body_font,
             textColor=colors.HexColor('#666666'),
             spaceAfter=20,
             alignment=1
@@ -58,8 +80,8 @@ class PDFGenerator:
         self.styles.add(ParagraphStyle(
             name='ChapterHeading',
             parent=self.styles['Heading1'],
-            fontSize=20,
-            fontName='Times-Bold',
+            fontSize=22,
+            fontName=bold_font,
             textColor=title_color,
             spaceAfter=12,
             spaceBefore=12,
@@ -74,8 +96,8 @@ class PDFGenerator:
         self.styles.add(ParagraphStyle(
             name='SectionHeading',
             parent=self.styles['Heading2'],
-            fontSize=16,
-            fontName='Times-Bold',
+            fontSize=17,
+            fontName=bold_font,
             textColor=title_color,
             spaceAfter=8,
             spaceBefore=10,
@@ -86,8 +108,8 @@ class PDFGenerator:
         self.styles.add(ParagraphStyle(
             name='SubsectionHeading',
             parent=self.styles['Heading3'],
-            fontSize=14,
-            fontName='Times-Bold',
+            fontSize=15,
+            fontName=bold_font,
             textColor=title_color,
             spaceAfter=6,
             spaceBefore=8,
@@ -98,9 +120,9 @@ class PDFGenerator:
         self.styles.add(ParagraphStyle(
             name='CustomBody',
             parent=self.styles['BodyText'],
-            fontSize=12,
-            fontName='Times-Roman',
-            leading=18,
+            fontSize=13,
+            fontName=body_font,
+            leading=20,
             spaceAfter=10,
             alignment=4  # Justify
         ))
