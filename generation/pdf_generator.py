@@ -6,6 +6,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
 from reportlab.lib import colors
+import random
 from datetime import datetime
 import re
 
@@ -20,13 +21,23 @@ class PDFGenerator:
 
     def _setup_custom_styles(self):
         """Setup custom paragraph styles for better formatting."""
+        # Choose a dark accent color for titles (randomized per generator instance)
+        accent_colors = [
+            '#1f4788',  # deep blue (original)
+            '#163a63',  # darker slate blue
+            '#223f5a',  # muted dark blue
+            '#1f4f3a',  # dark green
+            '#3a2f5a',  # dark purple
+            '#3b3b3b'   # dark gray
+        ]
+        title_color = colors.HexColor(random.choice(accent_colors))
         # Title style (cover page)
         self.styles.add(ParagraphStyle(
             name='CustomTitle',
             parent=self.styles['Heading1'],
-            fontSize=32,
-            fontName='Helvetica-Bold',
-            textColor=colors.HexColor('#1f4788'),
+            fontSize=36,
+            fontName='Times-Bold',
+            textColor=title_color,
             spaceAfter=30,
             spaceBefore=30,
             alignment=1  # Center
@@ -37,7 +48,7 @@ class PDFGenerator:
             name='CustomSubtitle',
             parent=self.styles['Heading2'],
             fontSize=14,
-            fontName='Helvetica',
+            fontName='Times-Roman',
             textColor=colors.HexColor('#666666'),
             spaceAfter=20,
             alignment=1
@@ -47,25 +58,25 @@ class PDFGenerator:
         self.styles.add(ParagraphStyle(
             name='ChapterHeading',
             parent=self.styles['Heading1'],
-            fontSize=18,
-            fontName='Helvetica-Bold',
-            textColor=colors.HexColor('#1f4788'),
+            fontSize=20,
+            fontName='Times-Bold',
+            textColor=title_color,
             spaceAfter=12,
             spaceBefore=12,
             alignment=0,  # Left
-            borderPadding=10,
-            borderColor=colors.HexColor('#1f4788'),
-            borderWidth=2,
-            borderRadius=5
+            borderPadding=8,
+            borderColor=title_color,
+            borderWidth=1.5,
+            borderRadius=4
         ))
 
         # Section heading style
         self.styles.add(ParagraphStyle(
             name='SectionHeading',
             parent=self.styles['Heading2'],
-            fontSize=14,
-            fontName='Helvetica-Bold',
-            textColor=colors.HexColor('#2d5aa0'),
+            fontSize=16,
+            fontName='Times-Bold',
+            textColor=title_color,
             spaceAfter=8,
             spaceBefore=10,
             alignment=0
@@ -75,9 +86,9 @@ class PDFGenerator:
         self.styles.add(ParagraphStyle(
             name='SubsectionHeading',
             parent=self.styles['Heading3'],
-            fontSize=12,
-            fontName='Helvetica-Bold',
-            textColor=colors.HexColor('#3d6ab0'),
+            fontSize=14,
+            fontName='Times-Bold',
+            textColor=title_color,
             spaceAfter=6,
             spaceBefore=8,
             alignment=0
@@ -87,9 +98,9 @@ class PDFGenerator:
         self.styles.add(ParagraphStyle(
             name='CustomBody',
             parent=self.styles['BodyText'],
-            fontSize=11,
-            fontName='Helvetica',
-            leading=16,
+            fontSize=12,
+            fontName='Times-Roman',
+            leading=18,
             spaceAfter=10,
             alignment=4  # Justify
         ))
