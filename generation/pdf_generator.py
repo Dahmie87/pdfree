@@ -177,7 +177,7 @@ class PDFGenerator:
         story.append(Spacer(1, 0.3*inch))
         story.append(Paragraph(f"By {author}", self.styles['CustomSubtitle']))
         story.append(Paragraph(
-            f"Generated with PDFree on {datetime.now().strftime('%B %d, %Y')}",
+            f"Generated with PDFree1.3 on {datetime.now().strftime('%B %d, %Y')}",
             self.styles['CustomSubtitle']
         ))
         story.append(Spacer(1, 1*inch))

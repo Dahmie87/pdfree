@@ -3,6 +3,7 @@
 import os
 import logging
 from groq import Groq  # type: ignore
+from utils.recorder import record_llm_call
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +135,8 @@ def resolve_best_groq_model(
     elif not candidates:
         candidates.extend(DEFAULT_MODEL_PREFERENCE)
     else:
-        candidates.extend([model for model in DEFAULT_MODEL_PREFERENCE if model != requested_model])
+        candidates.extend(
+            [model for model in DEFAULT_MODEL_PREFERENCE if model != requested_model])
 
     candidates = _unique_preserve_order(candidates)
 
@@ -146,7 +148,8 @@ def resolve_best_groq_model(
         )
         return candidates[0], candidates
 
-    accessible_candidates = [model for model in candidates if model in available_models]
+    accessible_candidates = [
+        model for model in candidates if model in available_models]
     if accessible_candidates:
         return accessible_candidates[0], accessible_candidates
 
@@ -205,6 +208,10 @@ class GroqLLM:
                 )
 
                 text = message.choices[0].message.content
+                try:
+                    record_llm_call(prompt, text, {"model": model})
+                except Exception:
+                    logger.debug("Recording LLM call failed; continuing")
                 self.model = model
                 logger.info(f"✅ Got response: {len(text)} characters")
                 return text
