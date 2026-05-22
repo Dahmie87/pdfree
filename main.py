@@ -106,18 +106,6 @@ def health_check():  # type: ignore
     return {"status": "ok", "message": "PDFree backend is running"}
 
 
-@app.options("/health")
-def options_health():
-    """Handle CORS preflight for health."""
-    return {"message": "OK"}
-
-
-@app.options("/generate-book")
-def options_generate_book():
-    """Handle CORS preflight requests."""
-    return {"message": "OK"}
-
-
 @app.post("/generate-book")
 def generate_book(request: BookRequest):
     """
@@ -163,8 +151,8 @@ def generate_book(request: BookRequest):
 
         logger.info(f"✅ PDF saved successfully: {len(pdf_bytes)} bytes")
 
-        # Determine which version string to report (client-provided or current)
-        used_version = request.version if request.version else "pdfree:1.3"
+        # Report the runtime version used by this backend.
+        used_version = "pdfree:1.3"
 
         # Create response with timing and version headers
         response = FileResponse(
@@ -203,4 +191,4 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn  # type: ignore
     logger.info("🚀 Starting FastAPI server...")
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

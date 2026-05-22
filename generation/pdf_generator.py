@@ -13,6 +13,8 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import os
 
+PDF_VERSION = (1, 3)
+
 
 class PDFGenerator:
     """Generate PDF books from text content."""
@@ -165,7 +167,8 @@ class PDFGenerator:
             topMargin=1*inch,
             bottomMargin=0.75*inch,
             title=title,
-            author=author
+            author=author,
+            pdfVersion=PDF_VERSION,
         )
 
         # Build story (content elements)
