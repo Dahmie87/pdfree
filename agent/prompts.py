@@ -22,12 +22,11 @@ Target total words: approximately {target_words} words
 Critical requirements:
 1. Make exactly one response that contains the entire book.
 2. Do not create a table of contents page.
-3. Do not create more than 2 chapters.
-4. Each chapter should be substantial enough to read like real book content, not a fragment.
-5. Keep the writing concise, coherent, and complete.
-6. Use chapter headers in the form `CHAPTER 1: ...` and `CHAPTER 2: ...`.
-7. Put chapter headings on their own lines.
-8. Keep section headings minimal; do not add lots of tiny subsections.
+3. Do not use chapter headers or chapter numbering.
+4. Write as one continuous flow from start to finish.
+5. You may use occasional short subtitle lines, but no chapter-like breaks.
+6. Keep the writing concise, coherent, and complete.
+7. Keep section headings minimal; do not add lots of tiny subsections.
 9. Return ONLY valid JSON with this exact shape:
 
 {{
@@ -37,7 +36,7 @@ Critical requirements:
 
 Content rules:
 - The `content` field must contain the entire book text.
-- Start the book immediately with the first chapter header.
+- Start the book immediately with the opening paragraph or subtitle.
 - Keep the whole book compact and polished.
 - No commentary, no markdown fences, no extra keys.
 

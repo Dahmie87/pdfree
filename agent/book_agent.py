@@ -234,15 +234,37 @@ class BookGenerationAgent:
             except Exception:
                 title = user_prompt.strip()
 
-        content = self._paginate_book_content(content)
+        content = self._normalize_super_fast_content(content)
 
         chapters = [
-            {"number": 1, "title": "Chapter 1", "sections": []},
-            {"number": 2, "title": "Chapter 2", "sections": []},
+            {"number": 1, "title": "Main Content", "sections": []},
         ]
         logger.info(
             f"   ✅ super_fast generated in 1 call: {len(content)} characters")
         return title, chapters, content
+
+    def _normalize_super_fast_content(self, content: str) -> str:
+        """Normalize super_fast output into one continuous, non-chapter flow."""
+        cleaned_lines: list[str] = []
+        for raw_line in content.splitlines():
+            line = raw_line.strip()
+
+            # Never carry explicit page-break markers in super_fast mode.
+            if line.upper() == "[PAGE_BREAK]":
+                continue
+
+            # Remove chapter framing and chapter title lines.
+            if set(line) <= {"="} and len(line) >= 3:
+                continue
+            if re.match(r"^#{1,6}\s*chapter\b", line, re.IGNORECASE):
+                continue
+            if re.match(r"^chapter\s+\d+\b", line, re.IGNORECASE):
+                continue
+
+            cleaned_lines.append(raw_line)
+
+        normalized = "\n".join(cleaned_lines).strip()
+        return normalized
 
     def _paginate_book_content(self, content: str) -> str:
         """Insert explicit page-break markers before chapter starts."""
