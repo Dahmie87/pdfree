@@ -6,14 +6,23 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib import colors
+from reportlab.lib.utils import ImageReader
 import random
 from datetime import datetime
 import re
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import os
+import tempfile
+PIL = None
+try:
+    import PIL as _PIL
+    PIL = _PIL
+    PIL_AVAILABLE = True
+except Exception:
+    PIL_AVAILABLE = False
 
-PDF_VERSION = (1, 3)
+PDF_VERSION = (1, 4)
 
 
 class PDFGenerator:
@@ -120,6 +129,17 @@ class PDFGenerator:
         ))
 
         styles.add(ParagraphStyle(
+            name='VersionNote',
+            parent=styles['Normal'],
+            fontSize=9,
+            fontName=body_font,
+            textColor=colors.HexColor('#666666'),
+            spaceAfter=12,
+            alignment=1,
+            italic=True,
+        ))
+
+        styles.add(ParagraphStyle(
             name='ChapterHeading',
             parent=styles['Heading1'],
             fontSize=profile['chapter_size'],
@@ -151,7 +171,7 @@ class PDFGenerator:
 
         return styles
 
-    def generate_pdf(self, title: str, content: str, author: str = "PDFree", writing_mode: str | None = None) -> bytes:
+    def generate_pdf(self, title: str, content: str, author: str = "PDFree", writing_mode: str | None = None, logo_path: str | None = None) -> bytes:
         buffer = BytesIO()
         styles = self._build_styles(writing_mode)
 
@@ -177,11 +197,76 @@ class PDFGenerator:
             f"Generated on {datetime.now().strftime('%B %d, %Y %H:%M:%S')}",
             styles['CustomSubtitle']
         ))
+        # Version / changelog note for this generated file
+        story.append(Paragraph(
+            "PDFree v1.4 — refactor(pdf): improve parsing pipeline and fix layout inconsistencies in ReportLab generator",
+            styles['VersionNote']
+        ))
         story.append(PageBreak())
 
         story.extend(self._parse_content(content, styles))
 
-        doc.build(story)
+        # Resolve logo: if no logo_path provided, check default assets/logo.webp
+        if not logo_path:
+            repo_root = os.path.abspath(os.path.join(
+                os.path.dirname(__file__), '..', '..'))
+            # common location: pdf_backend/assets/logo.webp
+            default_logo = os.path.join(
+                repo_root, 'pdf_backend', 'assets', 'logo.webp')
+            if os.path.exists(default_logo):
+                logo_path = default_logo
+
+        # Try to prepare an ImageReader for the logo (with Pillow fallback for WebP)
+        _resolved_logo = None
+        if logo_path and os.path.exists(logo_path):
+            try:
+                _resolved_logo = ImageReader(logo_path)
+            except Exception:
+                if PIL_AVAILABLE:
+                    try:
+                        with PIL.Image.open(logo_path) as im:
+                            out = BytesIO()
+                            im.convert('RGBA').save(out, format='PNG')
+                            out.seek(0)
+                            _resolved_logo = ImageReader(out)
+                    except Exception:
+                        _resolved_logo = None
+
+        # Footer drawing: place author and generation timestamp at bottom-right.
+        def _draw_footer(canvas, doc_obj):
+            try:
+                canvas.saveState()
+                page_width, page_height = doc_obj.pagesize
+                x = page_width - doc_obj.rightMargin
+                y = doc_obj.bottomMargin * 0.25
+
+                gen_text = f"{author} — Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+                # If a resolved logo is available, draw it to the left of the text.
+                if _resolved_logo is not None:
+                    try:
+                        img_h = 0.35 * inch
+                        img_w = img_h
+                        text_width = canvas.stringWidth(
+                            gen_text, 'Helvetica', 8)
+                        img_x = x - img_w - 6 - text_width
+                        img_y = y - (img_h * 0.2)
+                        canvas.drawImage(
+                            _resolved_logo, img_x, img_y, width=img_w, height=img_h, mask='auto')
+                        text_x = img_x - 6
+                    except Exception:
+                        text_x = x
+                else:
+                    text_x = x
+
+                # Draw right-aligned text
+                canvas.setFont('Helvetica', 8)
+                canvas.setFillColor(colors.HexColor('#333333'))
+                canvas.drawRightString(text_x, y, gen_text)
+            finally:
+                canvas.restoreState()
+
+        doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
         return buffer.getvalue()
 
     def _parse_content(self, content: str, styles):
