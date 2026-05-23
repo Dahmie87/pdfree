@@ -14,12 +14,15 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import os
 import tempfile
-PIL = None
+PILImage = None
+PIL_AVAILABLE = False
 try:
-    import PIL as _PIL
-    PIL = _PIL
-    PIL_AVAILABLE = True
+    import importlib
+    _pil = importlib.import_module('PIL')
+    PILImage = getattr(_pil, 'Image', None)
+    PIL_AVAILABLE = PILImage is not None
 except Exception:
+    PILImage = None
     PIL_AVAILABLE = False
 
 PDF_VERSION = (1, 4)
@@ -192,16 +195,8 @@ class PDFGenerator:
         story.append(Spacer(1, 1*inch))
         story.append(Paragraph(title, styles['CustomTitle']))
         story.append(Spacer(1, 0.3*inch))
-        story.append(Paragraph(f"By {author}", styles['CustomSubtitle']))
-        story.append(Paragraph(
-            f"Generated on {datetime.now().strftime('%B %d, %Y %H:%M:%S')}",
-            styles['CustomSubtitle']
-        ))
+
         # Version / changelog note for this generated file
-        story.append(Paragraph(
-            "PDFree v1.4 — refactor(pdf): improve parsing pipeline and fix layout inconsistencies in ReportLab generator",
-            styles['VersionNote']
-        ))
         story.append(PageBreak())
 
         story.extend(self._parse_content(content, styles))
@@ -222,9 +217,9 @@ class PDFGenerator:
             try:
                 _resolved_logo = ImageReader(logo_path)
             except Exception:
-                if PIL_AVAILABLE:
+                if PIL_AVAILABLE and PILImage is not None:
                     try:
-                        with PIL.Image.open(logo_path) as im:
+                        with PILImage.open(logo_path) as im:
                             out = BytesIO()
                             im.convert('RGBA').save(out, format='PNG')
                             out.seek(0)
@@ -240,7 +235,7 @@ class PDFGenerator:
                 x = page_width - doc_obj.rightMargin
                 y = doc_obj.bottomMargin * 0.25
 
-                gen_text = f"{author} — Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                gen_text = f"pdffreev1.4 — Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
                 # If a resolved logo is available, draw it to the left of the text.
                 if _resolved_logo is not None:
