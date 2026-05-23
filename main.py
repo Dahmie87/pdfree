@@ -8,7 +8,7 @@ from dotenv import load_dotenv  # type: ignore
 from fastapi import FastAPI, HTTPException  # type: ignore
 from fastapi.responses import FileResponse  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, AliasChoices
 from typing import Literal
 from agent.book_agent import BookGenerationAgent
 from models.llm import is_groq_daily_quota_error
@@ -80,9 +80,17 @@ def sanitize_filename(filename: str) -> str:
 
 class BookRequest(BaseModel):
     """Request model for book generation."""
+    model_config = ConfigDict(populate_by_name=True)
+
     prompt: str
     length_priority: Literal["length", "balanced",
                              "fast", "super_fast"] | None = "balanced"
+    theme: Literal["casual", "professional",
+                   "creative", "technical"] = Field(
+        default="casual",
+        description="Writing mode that controls tone, typography, and decorative style.",
+        validation_alias=AliasChoices("theme", "writing_mode"),
+    )
     # Optional custom filename (without .pdf extension)
     filename: str | None = None
     # Optional client-provided version string (e.g. "pdfree:1.3")
@@ -118,7 +126,7 @@ def generate_book(request: BookRequest):
         PDF file with generation time in response header
     """
     logger.info(
-        f"📥 Received request: {request.prompt[:50]}... (length: {request.length_priority})")
+        f"📥 Received request: {request.prompt[:50]}... (length: {request.length_priority}, mode: {request.theme})")
 
     if not request.prompt or len(request.prompt.strip()) < 5:
         logger.warning("❌ Prompt too short")
@@ -131,7 +139,10 @@ def generate_book(request: BookRequest):
         logger.info("🔄 Starting book generation...")
         # Generate PDF with optional length priority
         pdf_bytes, title, generation_time = agent.generate_pdf_book(
-            request.prompt, length_priority=request.length_priority)
+            request.prompt,
+            length_priority=request.length_priority,
+            writing_mode=request.theme,
+        )
 
         # Save temporarily with sanitized filename
         # Use provided filename or generate from title
@@ -191,4 +202,4 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn  # type: ignore
     logger.info("🚀 Starting FastAPI server...")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

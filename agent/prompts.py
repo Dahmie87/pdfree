@@ -8,7 +8,17 @@ WORD_COUNT_TARGETS = {
     "length": 8000,      # ~32 pages
 }
 
+WRITING_MODE_GUIDANCE = {
+    "casual": "Casual, warm, approachable, and easy to read. Keep the tone conversational and clear.",
+    "professional": "Professional, polished, authoritative, and structured. Keep the tone confident and refined.",
+    "creative": "Creative, vivid, expressive, and engaging. Use richer imagery and a more stylized voice.",
+    "technical": "Technical, precise, concise, and methodical. Prioritize accuracy and terminology over flourish.",
+}
+
+
 TITLE_EXTRACTION_PROMPT = """Extract a concise, compelling title for a book based on this prompt: {user_prompt}
+
+Writing mode: {mode_guidance}
 
 Provide ONLY the title, nothing else. Maximum 10 words."""
 
@@ -17,6 +27,7 @@ SUPER_FAST_BOOK_PROMPT = r"""You are a professional book author.
 Write a complete, compact book about: {user_prompt}
 
 Length priority: {length_guidance}
+Writing mode: {mode_guidance}
 Target total words: approximately {target_words} words
 
 Critical requirements:
@@ -45,6 +56,7 @@ Write the super fast book now:"""
 TITLE_TOC_PROMPT = """You are a professional book editor. Create a title and table of contents for a book about: {user_prompt}
 
 Length priority: {length_guidance}
+Writing mode: {mode_guidance}
 Target content length: approximately {target_words} words
 
 Requirements:
@@ -74,6 +86,7 @@ Generate the title and table of contents now:"""
 TOC_GENERATION_PROMPT = """You are a professional book editor. Create a detailed table of contents for a comprehensive book about: {user_prompt}
 
 Length priority: {length_guidance}
+Writing mode: {mode_guidance}
 Target content length: approximately {target_words} words
 
 Requirements:
@@ -103,6 +116,7 @@ CHAPTER_CONTENT_PROMPT = r"""You are an expert writer creating Chapter {chapter_
 Chapter Title: {chapter_title}
 
 Length priority: {length_guidance}
+Writing mode: {mode_guidance}
 Target words for this chapter: approximately {chapter_word_target} words
 
 Write a comprehensive, detailed chapter with ALL these sections. Include clear section headers for readability.
@@ -155,6 +169,7 @@ Table of Contents:
 {toc_text}
 
 Length priority: {length_guidance}
+Writing mode: {mode_guidance}
 Target total words: approximately {target_words} words
 
 Requirements:
@@ -201,15 +216,52 @@ Output rules summary:
     - Ensure the TOC matches the chapter and section headers used in the content.
 Write the complete book now:"""
 
+# Build PROMPT_MAP now that all template constants are defined.
+PROMPT_MAP: dict = {}
+for _mode, _guidance in WRITING_MODE_GUIDANCE.items():
+    # Replace the full label 'Writing mode: {mode_guidance}' with just the
+    # short guidance text to keep prompts minimal.
+    PROMPT_MAP[_mode] = {
+        "title": TITLE_EXTRACTION_PROMPT.replace("Writing mode: {mode_guidance}", _guidance),
+        "super_fast": SUPER_FAST_BOOK_PROMPT.replace("Writing mode: {mode_guidance}", _guidance),
+        "title_toc": TITLE_TOC_PROMPT.replace("Writing mode: {mode_guidance}", _guidance),
+        "toc": TOC_GENERATION_PROMPT.replace("Writing mode: {mode_guidance}", _guidance),
+        "chapter": CHAPTER_CONTENT_PROMPT.replace("Writing mode: {mode_guidance}", _guidance),
+        "full_book": FULL_BOOK_PROMPT.replace("Writing mode: {mode_guidance}", _guidance),
+    }
 
-def get_title_prompt(user_prompt: str) -> str:
+
+def get_prompt_for_mode(prompt_key: str, writing_mode: str | None, **kwargs) -> str:
+    """Return the exact prompt from PROMPT_MAP for the given prompt_key and mode.
+
+    The function substitutes placeholders with values provided in kwargs.
+    If `writing_mode` is None or unknown, `casual` is used as the fallback.
+    """
+    mode = (writing_mode or "casual")
+    if mode not in PROMPT_MAP:
+        mode = "casual"
+    mode_prompts = PROMPT_MAP[mode]
+    if prompt_key not in mode_prompts:
+        raise KeyError(f"Unknown prompt key: {prompt_key}")
+    template = mode_prompts[prompt_key]
+    return template.format(**kwargs)
+
+
+def get_title_prompt(user_prompt: str, writing_mode: str | None = None) -> str:
     """Get the prompt for title extraction."""
-    return TITLE_EXTRACTION_PROMPT.format(user_prompt=user_prompt)
+    return get_title_prompt_with_mode(user_prompt, writing_mode=writing_mode)
 
 
-def get_super_fast_book_prompt(user_prompt: str, length_priority: str | None = None) -> str:
+def get_title_prompt_with_mode(user_prompt: str, writing_mode: str | None = None) -> str:
+    """Get the prompt for title extraction with a writing mode."""
+    return get_prompt_for_mode("title", writing_mode, user_prompt=user_prompt)
+
+
+def get_super_fast_book_prompt(user_prompt: str, length_priority: str | None = None, writing_mode: str | None = None) -> str:
     """Get the one-shot prompt for super fast full-book generation."""
-    return SUPER_FAST_BOOK_PROMPT.format(
+    return get_prompt_for_mode(
+        "super_fast",
+        writing_mode,
         user_prompt=user_prompt,
         length_guidance=_get_length_guidance(length_priority),
         target_words=_get_word_count_target(length_priority),
@@ -227,6 +279,13 @@ def _get_length_guidance(length_priority: str | None) -> str:
     return "Balanced length; clear, practical depth without being exhaustive. Moderate examples."
 
 
+def _get_mode_guidance(writing_mode: str | None) -> str:
+    """Return a concise writing-mode description."""
+    if not writing_mode:
+        return WRITING_MODE_GUIDANCE["casual"]
+    return WRITING_MODE_GUIDANCE.get(writing_mode, WRITING_MODE_GUIDANCE["casual"])
+
+
 def _get_word_count_target(length_priority: str | None) -> int:
     """Get target word count for the entire book."""
     if length_priority in WORD_COUNT_TARGETS:
@@ -240,21 +299,47 @@ def _get_chapter_word_target(length_priority: str | None, num_chapters: int) -> 
     return total_target // max(num_chapters, 1)
 
 
-def get_title_toc_prompt(user_prompt: str, length_priority: str | None = None) -> str:
+def get_title_toc_prompt(user_prompt: str, length_priority: str | None = None, writing_mode: str | None = None) -> str:
     """Get the prompt for generating title and table of contents."""
-    return TITLE_TOC_PROMPT.format(
-        user_prompt=user_prompt,
-        length_guidance=_get_length_guidance(length_priority),
-        target_words=_get_word_count_target(length_priority)
+    return get_title_toc_prompt_with_mode(
+        user_prompt,
+        length_priority=length_priority,
+        writing_mode=writing_mode,
     )
 
 
-def get_toc_prompt(user_prompt: str, length_priority: str | None = None) -> str:
-    """Get the prompt for generating table of contents."""
-    return TOC_GENERATION_PROMPT.format(
+def get_title_toc_prompt_with_mode(
+    user_prompt: str,
+    length_priority: str | None = None,
+    writing_mode: str | None = None,
+) -> str:
+    """Get the prompt for generating title and table of contents with mode."""
+    return get_prompt_for_mode(
+        "title_toc",
+        writing_mode,
         user_prompt=user_prompt,
         length_guidance=_get_length_guidance(length_priority),
-        target_words=_get_word_count_target(length_priority)
+        target_words=_get_word_count_target(length_priority),
+    )
+
+
+def get_toc_prompt(user_prompt: str, length_priority: str | None = None, writing_mode: str | None = None) -> str:
+    """Get the prompt for generating table of contents."""
+    return get_toc_prompt_with_mode(user_prompt, length_priority=length_priority, writing_mode=writing_mode)
+
+
+def get_toc_prompt_with_mode(
+    user_prompt: str,
+    length_priority: str | None = None,
+    writing_mode: str | None = None,
+) -> str:
+    """Get the prompt for generating table of contents with mode."""
+    return get_prompt_for_mode(
+        "toc",
+        writing_mode,
+        user_prompt=user_prompt,
+        length_guidance=_get_length_guidance(length_priority),
+        target_words=_get_word_count_target(length_priority),
     )
 
 
@@ -264,30 +349,36 @@ def get_chapter_prompt(
     chapter_title: str,
     sections: list,
     length_priority: str | None = None,
-    num_chapters: int = 5
+    num_chapters: int = 5,
+    writing_mode: str | None = None,
 ) -> str:
     """Get the prompt for generating a single chapter."""
     sections_list = "\n".join([f"- {section}" for section in sections])
     chapter_target = _get_chapter_word_target(length_priority, num_chapters)
-    return CHAPTER_CONTENT_PROMPT.format(
+    return get_prompt_for_mode(
+        "chapter",
+        writing_mode,
         chapter_num=chapter_num,
         topic=topic,
         chapter_title=chapter_title,
         sections_list=sections_list,
         length_guidance=_get_length_guidance(length_priority),
-        chapter_word_target=chapter_target
+        chapter_word_target=chapter_target,
     )
 
 
 def get_full_book_prompt(
     topic: str,
     toc_text: str,
-    length_priority: str | None = None
+    length_priority: str | None = None,
+    writing_mode: str | None = None,
 ) -> str:
     """Get the prompt for generating a full book in a single pass."""
-    return FULL_BOOK_PROMPT.format(
+    return get_prompt_for_mode(
+        "full_book",
+        writing_mode,
         topic=topic,
         toc_text=toc_text,
         length_guidance=_get_length_guidance(length_priority),
-        target_words=_get_word_count_target(length_priority)
+        target_words=_get_word_count_target(length_priority),
     )

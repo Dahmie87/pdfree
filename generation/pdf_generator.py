@@ -1,10 +1,10 @@
 """PDF generation module using ReportLab."""
 
 from io import BytesIO
-from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib import colors
 import random
 from datetime import datetime
@@ -21,146 +21,142 @@ class PDFGenerator:
 
     def __init__(self, page_size=A4):
         self.page_size = page_size
-        self.styles = getSampleStyleSheet()
-        self._setup_custom_styles()
 
-    def _setup_custom_styles(self):
-        """Setup custom paragraph styles for better formatting."""
-        # Register Roboto fonts if available, else fall back to built-ins
+    def _build_styles(self, writing_mode: str | None = None):
+        """Build paragraph styles for the requested writing mode."""
+
         repo_root = os.path.abspath(os.path.join(
             os.path.dirname(__file__), '..', '..'))
         fonts_dir = os.path.join(repo_root, 'fonts')
-        body_font = 'Helvetica'
-        bold_font = 'Helvetica-Bold'
+
+        mode = (writing_mode or 'casual').strip().lower()
+
+        style_profiles = {
+            'casual': {
+                'body_font': 'Helvetica',
+                'bold_font': 'Helvetica-Bold',
+                'title_size': 40,
+                'subtitle_size': 15,
+                'chapter_size': 22,
+                'section_size': 17,
+                'body_size': 13,
+                'body_leading': 20,
+                'accent_colors': ['#1f4788', '#163a63', '#223f5a', '#1f4f3a'],
+            },
+            'professional': {
+                'body_font': 'Times-Roman',
+                'bold_font': 'Times-Bold',
+                'title_size': 38,
+                'subtitle_size': 14,
+                'chapter_size': 21,
+                'section_size': 16,
+                'body_size': 12.5,
+                'body_leading': 18,
+                'accent_colors': ['#17324d', '#274060', '#334e68'],
+            },
+            'creative': {
+                'body_font': 'Helvetica',
+                'bold_font': 'Helvetica-Bold',
+                'title_size': 44,
+                'subtitle_size': 16,
+                'chapter_size': 23,
+                'section_size': 18,
+                'body_size': 13.5,
+                'body_leading': 21,
+                'accent_colors': ['#7a2e8e', '#b23a48', '#1f6f78'],
+            },
+            'technical': {
+                'body_font': 'Courier',
+                'bold_font': 'Courier-Bold',
+                'title_size': 36,
+                'subtitle_size': 13,
+                'chapter_size': 20,
+                'section_size': 16,
+                'body_size': 11.5,
+                'body_leading': 16,
+                'accent_colors': ['#0f4c5c', '#1d3557', '#264653'],
+            },
+        }
+
+        profile = style_profiles.get(mode, style_profiles['casual'])
+
+        body_font = profile['body_font']
+        bold_font = profile['bold_font']
+
         try:
-            roboto_reg = False
             roboto_regular = os.path.join(fonts_dir, 'Roboto-Regular.ttf')
             roboto_bold = os.path.join(fonts_dir, 'Roboto-Bold.ttf')
+
             if os.path.exists(roboto_regular) and os.path.exists(roboto_bold):
                 pdfmetrics.registerFont(TTFont('Roboto', roboto_regular))
                 pdfmetrics.registerFont(TTFont('Roboto-Bold', roboto_bold))
                 body_font = 'Roboto'
                 bold_font = 'Roboto-Bold'
-                roboto_reg = True
         except Exception:
-            roboto_reg = False
+            pass
 
-        # Choose a dark accent color for titles (randomized per generator instance)
-        accent_colors = [
-            '#1f4788',  # deep blue (original)
-            '#163a63',  # darker slate blue
-            '#223f5a',  # muted dark blue
-            '#1f4f3a',  # dark green
-            '#3a2f5a',  # dark purple
-            '#3b3b3b'   # dark gray
-        ]
-        title_color = colors.HexColor(random.choice(accent_colors))
-        # Title style (cover page)
-        self.styles.add(ParagraphStyle(
+        title_color = colors.HexColor(random.choice(profile['accent_colors']))
+
+        styles = getSampleStyleSheet()
+
+        styles.add(ParagraphStyle(
             name='CustomTitle',
-            parent=self.styles['Heading1'],
-            fontSize=40,
+            parent=styles['Heading1'],
+            fontSize=profile['title_size'],
             fontName=bold_font,
             textColor=title_color,
             spaceAfter=30,
-            spaceBefore=30,
-            alignment=1  # Center
+            alignment=1
         ))
 
-        # Subtitle style
-        self.styles.add(ParagraphStyle(
+        styles.add(ParagraphStyle(
             name='CustomSubtitle',
-            parent=self.styles['Heading2'],
-            fontSize=15,
+            parent=styles['Heading2'],
+            fontSize=profile['subtitle_size'],
             fontName=body_font,
             textColor=colors.HexColor('#666666'),
             spaceAfter=20,
             alignment=1
         ))
 
-        # Chapter heading style
-        self.styles.add(ParagraphStyle(
+        styles.add(ParagraphStyle(
             name='ChapterHeading',
-            parent=self.styles['Heading1'],
-            fontSize=22,
+            parent=styles['Heading1'],
+            fontSize=profile['chapter_size'],
             fontName=bold_font,
             textColor=title_color,
             spaceAfter=12,
             spaceBefore=12,
-            alignment=0,  # Left
-            borderPadding=8,
-            borderColor=title_color,
-            borderWidth=1.5,
-            borderRadius=4
         ))
 
-        # Section heading style
-        self.styles.add(ParagraphStyle(
+        styles.add(ParagraphStyle(
             name='SectionHeading',
-            parent=self.styles['Heading2'],
-            fontSize=17,
+            parent=styles['Heading2'],
+            fontSize=profile['section_size'],
             fontName=bold_font,
             textColor=title_color,
             spaceAfter=8,
             spaceBefore=10,
-            alignment=0
         ))
 
-        # Subsection heading style
-        self.styles.add(ParagraphStyle(
-            name='SubsectionHeading',
-            parent=self.styles['Heading3'],
-            fontSize=15,
-            fontName=bold_font,
-            textColor=title_color,
-            spaceAfter=6,
-            spaceBefore=8,
-            alignment=0
-        ))
-
-        # Body style with better formatting
-        self.styles.add(ParagraphStyle(
+        styles.add(ParagraphStyle(
             name='CustomBody',
-            parent=self.styles['BodyText'],
-            fontSize=13,
+            parent=styles['BodyText'],
+            fontSize=profile['body_size'],
             fontName=body_font,
-            leading=20,
+            leading=profile['body_leading'],
             spaceAfter=10,
-            alignment=4  # Justify
+            alignment=4
         ))
 
-        # Quote style
-        self.styles.add(ParagraphStyle(
-            name='Quote',
-            parent=self.styles['BodyText'],
-            fontSize=10,
-            fontName='Helvetica-Oblique',
-            textColor=colors.HexColor('#555555'),
-            leading=14,
-            leftIndent=20,
-            rightIndent=20,
-            spaceAfter=10,
-            borderLeft=3,
-            borderColor=colors.HexColor('#1f4788')
-        ))
+        return styles
 
-    def generate_pdf(self, title: str, content: str, author: str = "AI Generated") -> bytes:
-        """
-        Generate PDF from content with proper chapter formatting.
+    def generate_pdf(self, title: str, content: str, author: str = "PDFree", writing_mode: str | None = None) -> bytes:
+        buffer = BytesIO()
+        styles = self._build_styles(writing_mode)
 
-        Args:
-            title: Book title
-            content: Book content with chapter headers (====CHAPTER X: TITLE====)
-            author: Author name
-
-        Returns:
-            PDF as bytes
-        """
-        pdf_buffer = BytesIO()
-
-        # Create PDF document
         doc = SimpleDocTemplate(
-            pdf_buffer,
+            buffer,
             pagesize=self.page_size,
             rightMargin=0.75*inch,
             leftMargin=0.75*inch,
@@ -171,228 +167,76 @@ class PDFGenerator:
             pdfVersion=PDF_VERSION,
         )
 
-        # Build story (content elements)
         story = []
 
-        # Add title page
         story.append(Spacer(1, 1*inch))
-        story.append(Paragraph(title, self.styles['CustomTitle']))
+        story.append(Paragraph(title, styles['CustomTitle']))
         story.append(Spacer(1, 0.3*inch))
-        story.append(Paragraph(f"By {author}", self.styles['CustomSubtitle']))
+        story.append(Paragraph(f"By {author}", styles['CustomSubtitle']))
         story.append(Paragraph(
-            f"Generated with PDFree1.3 on {datetime.now().strftime('%B %d, %Y')}",
-            self.styles['CustomSubtitle']
+            f"Generated on {datetime.now().strftime('%B %d, %Y %H:%M:%S')}",
+            styles['CustomSubtitle']
         ))
-        story.append(Spacer(1, 1*inch))
         story.append(PageBreak())
 
-        # Parse and add content
-        story.extend(self._parse_content(content))
+        story.extend(self._parse_content(content, styles))
 
-        # Build PDF
         doc.build(story)
-        return pdf_buffer.getvalue()
+        return buffer.getvalue()
 
-    def _parse_content(self, content: str):
-        """Parse content and create story elements with proper formatting."""
+    def _parse_content(self, content: str, styles):
         story = []
         lines = content.split('\n')
         i = 0
-        in_toc = False
-        prev_was_sec_id = False
 
         while i < len(lines):
             line = lines[i].strip()
 
-            # Skip empty lines
             if not line:
                 i += 1
                 continue
 
-            # Explicit page break inserted by the agent
             if line.upper() == '[PAGE_BREAK]':
                 story.append(PageBreak())
                 i += 1
                 continue
 
-            # Check for TABLE OF CONTENTS
-            if "TABLE OF CONTENTS" in line.upper():
-                in_toc = True
-                story.append(PageBreak())
-                story.append(Paragraph("TABLE OF CONTENTS",
-                             self.styles['ChapterHeading']))
+            if line.upper().startswith('CHAPTER'):
+                story.append(Paragraph(line, styles['ChapterHeading']))
                 story.append(Spacer(1, 0.2*inch))
                 i += 1
                 continue
 
-            # Handle Markdown headings (#, ##, ###) and split inline content
-            if line.startswith('#'):
-                m = re.match(r'^(#+)\s*(.*)$', line)
-                if m:
-                    level = len(m.group(1))
-                    rest = m.group(2).strip()
-                    # Try to split header from inline content at first sentence-ending punctuation
-                    parts = re.split(r'([.?!:])\s+', rest, maxsplit=1)
-                    if len(parts) >= 3:
-                        header_text = (parts[0] + parts[1]).strip()
-                        remaining = parts[2].strip()
-                    else:
-                        header_text = rest
-                        remaining = ''
-
-                    if level == 1:
-                        story.append(
-                            Paragraph(header_text, self.styles['ChapterHeading']))
-                        story.append(Spacer(1, 0.2*inch))
-                    elif level == 2:
-                        story.append(Spacer(1, 0.15*inch))
-                        story.append(
-                            Paragraph(header_text, self.styles['SectionHeading']))
-                        story.append(Spacer(1, 0.1*inch))
-                    else:
-                        story.append(Spacer(1, 0.12*inch))
-                        story.append(
-                            Paragraph(header_text, self.styles['SubsectionHeading']))
-                        story.append(Spacer(1, 0.08*inch))
-
-                    if remaining:
-                        story.append(
-                            Paragraph(remaining, self.styles['CustomBody']))
-                        story.append(Spacer(1, 0.08*inch))
-
-                    i += 1
-                    continue
-
-            # Parse TOC entries (Chapter X: Title or • Section)
-            if in_toc:
-                if line.startswith("="):
-                    i += 1
-                    continue
-                if line.startswith("Chapter"):
-                    story.append(
-                        Paragraph(line, self.styles['SectionHeading']))
-                    story.append(Spacer(1, 0.05*inch))
-                    i += 1
-                    continue
-                if line.startswith("•"):
-                    story.append(Paragraph(line, self.styles['CustomBody']))
-                    story.append(Spacer(1, 0.03*inch))
-                    i += 1
-                    continue
-                # End of TOC (empty line after chapters)
-                if not line and i > 0:
-                    in_toc = False
-
-            # Check for chapter ID marker [CH#]
-            if line.startswith('[CH') and ']' in line:
-                prev_was_sec_id = False
-                i += 1
-                continue
-
-            # Check for section ID marker [SEC#.#]
-            if line.startswith('[SEC') and ']' in line:
-                prev_was_sec_id = True
-                i += 1
-                continue
-
-            # Check for chapter headers (lines containing 'CHAPTER') or
-            # the common pattern where a line of === separators surrounds the CHAPTER line.
-            if line.startswith('='):
-                # look ahead for a CHAPTER line after the separator
-                j = i + 1
-                while j < len(lines) and not lines[j].strip():
-                    j += 1
-                if j < len(lines) and 'CHAPTER' in lines[j].upper():
-                    chapter_title = lines[j].strip()
-                    story.append(
-                        Paragraph(chapter_title, self.styles['ChapterHeading']))
-                    story.append(Spacer(1, 0.2*inch))
-                    prev_was_sec_id = False
-                    i = j + 1
-                    continue
-
-            if line.upper().startswith('CHAPTER '):
-                chapter_title = line
-                story.append(
-                    Paragraph(chapter_title, self.styles['ChapterHeading']))
-                story.append(Spacer(1, 0.2*inch))
-                prev_was_sec_id = False
-                i += 1
-                continue
-
-            # Check for section headers (ALL CAPS with underscores or standalone short lines)
             if self._is_section_header(line):
-                story.append(Spacer(1, 0.15*inch))
-                story.append(Paragraph(line, self.styles['SectionHeading']))
+                story.append(Paragraph(line, styles['SectionHeading']))
                 story.append(Spacer(1, 0.1*inch))
-                prev_was_sec_id = False
                 i += 1
                 continue
 
-            # Handle simple bullet lines
-            if line.startswith('•') or line.startswith('- '):
-                story.append(Paragraph(line, self.styles['CustomBody']))
-                story.append(Spacer(1, 0.03*inch))
-                i += 1
-                continue
-
-            # Collect paragraph text (combine until double newline or header)
-            paragraph_lines = []
-            while i < len(lines):
-                current_line = lines[i].strip()
-
-                if not current_line:
-                    i += 1
+            paragraph = []
+            while i < len(lines) and lines[i].strip():
+                if lines[i].strip().upper().startswith('CHAPTER'):
                     break
-
-                if (current_line.startswith('=') and 'CHAPTER' in current_line.upper()) or self._is_section_header(current_line) or (current_line.startswith('[CH') and ']' in current_line) or (current_line.startswith('[SEC') and ']' in current_line):
-                    break
-
-                paragraph_lines.append(current_line)
+                paragraph.append(lines[i].strip())
                 i += 1
 
-            # Format based on whether this follows a section ID
-            if prev_was_sec_id and paragraph_lines:
-                # This is a section title, format it accordingly
-                title_text = ' '.join(paragraph_lines)
-                if self._is_section_header(title_text):
-                    story.append(Spacer(1, 0.15*inch))
-                    story.append(
-                        Paragraph(title_text, self.styles['SectionHeading']))
-                    story.append(Spacer(1, 0.1*inch))
-                else:
-                    story.append(
-                        Paragraph(title_text, self.styles['CustomBody']))
-                    story.append(Spacer(1, 0.08*inch))
-                prev_was_sec_id = False
-            elif paragraph_lines:
-                para_text = ' '.join(paragraph_lines)
-                story.append(Paragraph(para_text, self.styles['CustomBody']))
+            if paragraph:
+                story.append(
+                    Paragraph(" ".join(paragraph), styles['CustomBody']))
                 story.append(Spacer(1, 0.08*inch))
 
         return story
 
     def _is_section_header(self, line: str) -> bool:
-        """Check if a line looks like a section header."""
         line = line.strip()
-        if not line or len(line) > 80:
+        if len(line) > 80:
             return False
-
-        # Do not treat normal prose as a heading.
         if line.endswith(('.', '!', '?')):
             return False
 
         words = line.split()
-        if not 1 <= len(words) <= 6:
+        if not (1 <= len(words) <= 6):
             return False
 
-        # Require most words to look title-cased or acronym-like.
-        title_words = 0
-        for word in words:
-            clean_word = re.sub(r'[^A-Za-z0-9-]', '', word)
-            if not clean_word:
-                continue
-            if clean_word.isupper() or clean_word[0].isupper():
-                title_words += 1
-
-        return title_words >= max(1, int(len(words) * 0.8))
+        score = sum(1 for w in words if w[:1].isupper())
+        return score >= len(words) * 0.8
