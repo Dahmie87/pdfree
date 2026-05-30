@@ -14,6 +14,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import os
 import tempfile
+from reportlab.pdfgen import canvas as rl_canvas
 PILImage = None
 PIL_AVAILABLE = False
 try:
@@ -24,6 +25,20 @@ try:
 except Exception:
     PILImage = None
     PIL_AVAILABLE = False
+
+# Optional PDF merging library (prefer pypdf / PyPDF2 if available)
+PYPDF_AVAILABLE = False
+PdfReader = None
+PdfWriter = None
+try:
+    from pypdf import PdfReader, PdfWriter  # modern package name
+    PYPDF_AVAILABLE = True
+except Exception:
+    try:
+        from PyPDF2 import PdfFileReader as PdfReader, PdfFileWriter as PdfWriter
+        PYPDF_AVAILABLE = True
+    except Exception:
+        PYPDF_AVAILABLE = False
 
 PDF_VERSION = (1, 4)
 
@@ -174,7 +189,13 @@ class PDFGenerator:
 
         return styles
 
-    def generate_pdf(self, title: str, content: str, author: str = "PDFree", writing_mode: str | None = None, logo_path: str | None = None) -> bytes:
+    def generate_pdf(self, title: str, content: str, author: str = "PDFree", writing_mode: str | None = None, logo_path: str | None = None, cover_path: str | None = None) -> bytes:
+        """Generate the main PDF. Optional: pass `cover_path` in kwargs to prepend a hard cover PDF page.
+
+        Note: If `pypdf` / `PyPDF2` is available it will be used to merge PDFs. Otherwise
+        a fallback is used that inserts the cover image as a first Flowable (still works,
+        but merging is preferable).
+        """
         buffer = BytesIO()
         styles = self._build_styles(writing_mode)
 
@@ -262,7 +283,80 @@ class PDFGenerator:
                 canvas.restoreState()
 
         doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
-        return buffer.getvalue()
+
+        main_pdf_bytes = buffer.getvalue()
+
+        # If a cover image path param was provided use it, else check attribute on self
+        cover_path = cover_path or getattr(self, 'cover_path', None)
+        if cover_path and os.path.exists(cover_path):
+            try:
+                cover_pdf_bytes = self._create_cover_pdf(cover_path)
+                if PYPDF_AVAILABLE and PdfReader is not None and PdfWriter is not None:
+                    # Merge cover + main using pypdf/PyPDF2
+                    try:
+                        # pypdf and PyPDF2 have different reader/writer APIs; handle both
+                        reader_cover = PdfReader(BytesIO(cover_pdf_bytes))
+                        reader_main = PdfReader(BytesIO(main_pdf_bytes))
+                        writer = PdfWriter()
+                        # modern pypdf: .pages is list-like; PyPDF2 older naming also works
+                        if hasattr(reader_cover, 'pages'):
+                            writer.add_page(reader_cover.pages[0])
+                        else:
+                            writer.addPage(reader_cover.getPage(0))
+
+                        if hasattr(reader_main, 'pages'):
+                            for p in reader_main.pages:
+                                writer.add_page(p)
+                        else:
+                            for i in range(reader_main.getNumPages()):
+                                writer.addPage(reader_main.getPage(i))
+
+                        out = BytesIO()
+                        # write method differs: modern pypdf uses .write(fileobj)
+                        if hasattr(writer, 'write'):
+                            writer.write(out)
+                        else:
+                            writer.write(out)
+                        return out.getvalue()
+                    except Exception:
+                        # fallback to returning main if merging fails
+                        return main_pdf_bytes
+                else:
+                    # No merging library available: fallback to embedding cover as first Flowable
+                    try:
+                        styles = self._build_styles(writing_mode)
+                        cover_story = []
+                        # Full-page image via Image flowable requires specifying width/height
+                        from reportlab.platypus import Image
+                        page_w, page_h = self.page_size
+                        img = Image(cover_path, width=page_w, height=page_h)
+                        cover_story.append(img)
+                        cover_story.append(PageBreak())
+
+                        # Build a new document that includes cover + original story
+                        merged_buffer = BytesIO()
+                        merged_doc = SimpleDocTemplate(
+                            merged_buffer,
+                            pagesize=self.page_size,
+                            rightMargin=0.75*inch,
+                            leftMargin=0.75*inch,
+                            topMargin=1*inch,
+                            bottomMargin=0.75*inch,
+                            title=title,
+                            author=author,
+                            pdfVersion=PDF_VERSION,
+                        )
+                        # prepend cover_story to original story
+                        merged_story = cover_story + story
+                        merged_doc.build(
+                            merged_story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
+                        return merged_buffer.getvalue()
+                    except Exception:
+                        return main_pdf_bytes
+            except Exception:
+                return main_pdf_bytes
+
+        return main_pdf_bytes
 
     def _parse_content(self, content: str, styles):
         story = []
@@ -320,3 +414,55 @@ class PDFGenerator:
 
         score = sum(1 for w in words if w[:1].isupper())
         return score >= len(words) * 0.8
+
+    def _create_cover_pdf(self, cover_path: str) -> bytes:
+        """Create a one-page PDF containing the cover image sized to fill the page.
+
+        Returns PDF bytes or empty bytes on failure.
+        """
+        try:
+            buf = BytesIO()
+            c = rl_canvas.Canvas(buf, pagesize=self.page_size)
+            page_w, page_h = self.page_size
+
+            img_reader = None
+            try:
+                img_reader = ImageReader(cover_path)
+            except Exception:
+                if PIL_AVAILABLE and PILImage is not None:
+                    try:
+                        with PILImage.open(cover_path) as im:
+                            out = BytesIO()
+                            im.convert('RGBA').save(out, format='PNG')
+                            out.seek(0)
+                            img_reader = ImageReader(out)
+                    except Exception:
+                        img_reader = None
+
+            if img_reader is None:
+                return b''
+
+            try:
+                iw, ih = img_reader.getSize()
+                # Choose scale to cover the whole page (may crop)
+                scale = max(page_w / iw, page_h / ih)
+                new_w = iw * scale
+                new_h = ih * scale
+                x = (page_w - new_w) / 2
+                y = (page_h - new_h) / 2
+                c.drawImage(img_reader, x, y, width=new_w,
+                            height=new_h, mask='auto')
+            except Exception:
+                # best-effort: try drawing without sizing
+                try:
+                    c.drawImage(img_reader, 0, 0, width=page_w,
+                                height=page_h, mask='auto')
+                except Exception:
+                    pass
+
+            c.showPage()
+            c.save()
+            buf.seek(0)
+            return buf.getvalue()
+        except Exception:
+            return b''
