@@ -123,6 +123,7 @@ class PDFGenerator:
             pass
 
         title_color = colors.HexColor(random.choice(profile['accent_colors']))
+        self._cover_background_color = title_color
 
         styles = getSampleStyleSheet()
 
@@ -187,17 +188,39 @@ class PDFGenerator:
             alignment=4
         ))
 
+        styles.add(ParagraphStyle(
+            name='CoverTitle',
+            parent=styles['Title'],
+            fontSize=profile['title_size'] + 6,
+            fontName=bold_font,
+            textColor=colors.white,
+            leading=profile['title_size'] + 14,
+            alignment=0,
+        ))
+
+        styles.add(ParagraphStyle(
+            name='CoverMeta',
+            parent=styles['Normal'],
+            fontSize=11,
+            fontName=body_font,
+            textColor=colors.HexColor('#f3f4f6'),
+            leading=15,
+            alignment=0,
+        ))
+
         return styles
 
     def generate_pdf(self, title: str, content: str, author: str = "PDFree", writing_mode: str | None = None, logo_path: str | None = None, cover_path: str | None = None) -> bytes:
-        """Generate the main PDF. Optional: pass `cover_path` in kwargs to prepend a hard cover PDF page.
-
-        Note: If `pypdf` / `PyPDF2` is available it will be used to merge PDFs. Otherwise
-        a fallback is used that inserts the cover image as a first Flowable (still works,
-        but merging is preferable).
-        """
+        """Generate the main PDF with a styled first-page cover."""
         buffer = BytesIO()
         styles = self._build_styles(writing_mode)
+
+        cover_base = getattr(self, '_cover_background_color',
+                             None) or colors.HexColor('#17324d')
+        cover_accent = colors.HexColor('#10263f')
+        cover_highlight = colors.HexColor('#dbeafe')
+        display_title = title.strip().strip('"').strip("'")
+        display_subtitle = f"A generated book on {display_title}"
 
         doc = SimpleDocTemplate(
             buffer,
@@ -206,20 +229,12 @@ class PDFGenerator:
             leftMargin=0.75*inch,
             topMargin=1*inch,
             bottomMargin=0.75*inch,
-            title=title,
+            title=display_title,
             author=author,
             pdfVersion=PDF_VERSION,
         )
 
-        story = []
-
-        story.append(Spacer(1, 1*inch))
-        story.append(Paragraph(title, styles['CustomTitle']))
-        story.append(Spacer(1, 0.3*inch))
-
-        # Version / changelog note for this generated file
-        story.append(PageBreak())
-
+        story = [Spacer(1, 0.01 * inch), PageBreak()]
         story.extend(self._parse_content(content, styles))
 
         # Resolve logo: if no logo_path provided, check default assets/logo.webp
@@ -282,81 +297,48 @@ class PDFGenerator:
             finally:
                 canvas.restoreState()
 
-        doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
+        def _draw_cover_page(canvas, doc_obj):
+            canvas.saveState()
+            page_width, page_height = doc_obj.pagesize
 
-        main_pdf_bytes = buffer.getvalue()
+            canvas.setFillColor(cover_base)
+            canvas.rect(0, 0, page_width, page_height, fill=1, stroke=0)
 
-        # If a cover image path param was provided use it, else check attribute on self
-        cover_path = cover_path or getattr(self, 'cover_path', None)
-        if cover_path and os.path.exists(cover_path):
-            try:
-                cover_pdf_bytes = self._create_cover_pdf(cover_path)
-                if PYPDF_AVAILABLE and PdfReader is not None and PdfWriter is not None:
-                    # Merge cover + main using pypdf/PyPDF2
-                    try:
-                        # pypdf and PyPDF2 have different reader/writer APIs; handle both
-                        reader_cover = PdfReader(BytesIO(cover_pdf_bytes))
-                        reader_main = PdfReader(BytesIO(main_pdf_bytes))
-                        writer = PdfWriter()
-                        # modern pypdf: .pages is list-like; PyPDF2 older naming also works
-                        if hasattr(reader_cover, 'pages'):
-                            writer.add_page(reader_cover.pages[0])
-                        else:
-                            writer.addPage(reader_cover.getPage(0))
+            canvas.setFillColor(cover_accent)
+            canvas.rect(0, page_height * 0.67, page_width,
+                        page_height * 0.33, fill=1, stroke=0)
 
-                        if hasattr(reader_main, 'pages'):
-                            for p in reader_main.pages:
-                                writer.add_page(p)
-                        else:
-                            for i in range(reader_main.getNumPages()):
-                                writer.addPage(reader_main.getPage(i))
+            canvas.setFillColor(cover_highlight)
+            canvas.roundRect(page_width * 0.07, page_height * 0.14,
+                             page_width * 0.38, page_height * 0.024, 8, fill=1, stroke=0)
+            canvas.setFillColor(colors.HexColor('#ffffff'))
+            canvas.circle(page_width * 0.82, page_height * 0.72,
+                          page_width * 0.16, fill=1, stroke=0)
 
-                        out = BytesIO()
-                        # write method differs: modern pypdf uses .write(fileobj)
-                        if hasattr(writer, 'write'):
-                            writer.write(out)
-                        else:
-                            writer.write(out)
-                        return out.getvalue()
-                    except Exception:
-                        # fallback to returning main if merging fails
-                        return main_pdf_bytes
-                else:
-                    # No merging library available: fallback to embedding cover as first Flowable
-                    try:
-                        styles = self._build_styles(writing_mode)
-                        cover_story = []
-                        # Full-page image via Image flowable requires specifying width/height
-                        from reportlab.platypus import Image
-                        page_w, page_h = self.page_size
-                        img = Image(cover_path, width=page_w, height=page_h)
-                        cover_story.append(img)
-                        cover_story.append(PageBreak())
+            title_x = page_width * 0.09
+            title_y = page_height * 0.36
+            title_para = Paragraph(display_title, styles['CoverTitle'])
+            title_para.wrap(page_width * 0.74, page_height * 0.28)
+            title_para.drawOn(canvas, title_x, title_y)
 
-                        # Build a new document that includes cover + original story
-                        merged_buffer = BytesIO()
-                        merged_doc = SimpleDocTemplate(
-                            merged_buffer,
-                            pagesize=self.page_size,
-                            rightMargin=0.75*inch,
-                            leftMargin=0.75*inch,
-                            topMargin=1*inch,
-                            bottomMargin=0.75*inch,
-                            title=title,
-                            author=author,
-                            pdfVersion=PDF_VERSION,
-                        )
-                        # prepend cover_story to original story
-                        merged_story = cover_story + story
-                        merged_doc.build(
-                            merged_story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
-                        return merged_buffer.getvalue()
-                    except Exception:
-                        return main_pdf_bytes
-            except Exception:
-                return main_pdf_bytes
+            subtitle_para = Paragraph(display_subtitle, styles['CoverMeta'])
+            subtitle_para.wrap(page_width * 0.68, page_height * 0.08)
+            subtitle_para.drawOn(canvas, title_x, title_y - 42)
 
-        return main_pdf_bytes
+            meta_para = Paragraph(
+                f"{author}  |  {datetime.now().strftime('%Y')}", styles['CoverMeta'])
+            meta_para.wrap(page_width * 0.5, page_height * 0.06)
+            meta_para.drawOn(canvas, title_x, page_height * 0.12)
+
+            canvas.setFont('Helvetica-Bold', 11)
+            canvas.setFillColor(colors.HexColor('#e2e8f0'))
+            canvas.drawString(page_width * 0.09, page_height * 0.9, 'PDFree')
+            canvas.restoreState()
+
+        doc.build(story, onFirstPage=_draw_cover_page,
+                  onLaterPages=_draw_footer)
+
+        return buffer.getvalue()
 
     def _parse_content(self, content: str, styles):
         story = []

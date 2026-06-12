@@ -38,10 +38,10 @@ Critical requirements:
 7. Keep section headings minimal; do not add lots of tiny subsections.
 8. Return ONLY valid JSON with this exact shape:
 
-{{
+{
     "title": "Book Title",
     "content": "Full book text here"
-}}
+}
 
 Write the super fast book now:"""
 

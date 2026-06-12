@@ -20,6 +20,29 @@ from agent.prompts import (
 logger = logging.getLogger(__name__)
 
 
+def _extract_json_object(text: str) -> str:
+    """Extract the first JSON object from model output."""
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE).strip()
+        cleaned = re.sub(r"\s*```$", "", cleaned).strip()
+
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        raise json.JSONDecodeError("No JSON object found", cleaned, 0)
+
+    return cleaned[start:end + 1]
+
+
+def _parse_json_response(text: str) -> dict:
+    """Parse a model response that may include markdown or extra text around JSON."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return json.loads(_extract_json_object(text))
+
+
 def _is_rate_limit_error(error: Exception) -> bool:
     """Return True when the Groq call failed because the daily quota is exhausted."""
     return is_groq_daily_quota_error(error)
@@ -68,9 +91,12 @@ class BookGenerationAgent:
             )
             toc_response = self.llm.invoke(toc_prompt)
 
-            # Parse JSON response
-            toc_data = json.loads(toc_response)
+            # Parse JSON response, allowing for fenced or prefixed output.
+            toc_data = _parse_json_response(toc_response)
             chapters = toc_data.get("chapters", [])
+
+            if not chapters:
+                raise ValueError("TOC response did not include any chapters")
 
             logger.info(f"   ✅ Generated {len(chapters)} chapters")
             for chapter in chapters:
@@ -78,11 +104,20 @@ class BookGenerationAgent:
                     f"      - Chapter {chapter['number']}: {chapter['title']}")
 
             return chapters
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, ValueError) as error:
             logger.error(
-                "   ❌ Failed to parse TOC JSON, retrying with simpler format")
-            # Fallback: create default chapters
-            return self._generate_default_toc()
+                f"   ❌ Failed to parse TOC JSON: {error}")
+            retry_prompt = (
+                "Return only valid JSON for the table of contents. "
+                "Do not add markdown, commentary, or code fences."
+            )
+            retry_response = self.llm.invoke(toc_prompt + "\n\n" + retry_prompt)
+            toc_data = _parse_json_response(retry_response)
+            chapters = toc_data.get("chapters", [])
+            if not chapters:
+                raise ValueError("TOC retry did not include any chapters")
+            logger.info(f"   ✅ Generated {len(chapters)} chapters after retry")
+            return chapters
         except Exception as e:
             logger.error(f"   ❌ TOC generation failed: {e}")
             raise
@@ -97,17 +132,16 @@ class BookGenerationAgent:
                 writing_mode=writing_mode,
             )
             response = self.llm.invoke(combined_prompt)
-            data = json.loads(response)
+            data = _parse_json_response(response)
             title = str(data.get("title", "")).strip(
             ) or self._generate_title(user_prompt, writing_mode=writing_mode)
             chapters = data.get("chapters", [])
             if not chapters:
-                chapters = self._generate_toc(
-                    user_prompt, length_priority=length_priority)
+                raise ValueError("Combined title+TOC response did not include chapters")
             return title, chapters
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, ValueError) as error:
             logger.error(
-                "   ❌ Failed to parse title+TOC JSON, retrying separately")
+                f"   ❌ Failed to parse title+TOC JSON: {error}")
             return self._generate_title(user_prompt, writing_mode=writing_mode), self._generate_toc(
                 user_prompt,
                 length_priority=length_priority,
