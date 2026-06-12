@@ -15,6 +15,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 import os
 import tempfile
 from reportlab.pdfgen import canvas as rl_canvas
+from cover_designs import pick_cover, _wrap_title
 PILImage = None
 PIL_AVAILABLE = False
 try:
@@ -210,7 +211,7 @@ class PDFGenerator:
 
         return styles
 
-    def generate_pdf(self, title: str, content: str, author: str = "PDFree", writing_mode: str | None = None, logo_path: str | None = None, cover_path: str | None = None) -> bytes:
+    def generate_pdf(self, title: str, content: str, author: str = "PDFree", writing_mode: str | None = None, logo_path: str | None = None, cover_path: str | None = None, cover_design: str = "split") -> bytes:
         """Generate the main PDF with a styled first-page cover."""
         buffer = BytesIO()
         styles = self._build_styles(writing_mode)
@@ -297,46 +298,14 @@ class PDFGenerator:
             finally:
                 canvas.restoreState()
 
-        def _draw_cover_page(canvas, doc_obj):
-            canvas.saveState()
-            page_width, page_height = doc_obj.pagesize
-
-            canvas.setFillColor(cover_base)
-            canvas.rect(0, 0, page_width, page_height, fill=1, stroke=0)
-
-            canvas.setFillColor(cover_accent)
-            canvas.rect(0, page_height * 0.67, page_width,
-                        page_height * 0.33, fill=1, stroke=0)
-
-            canvas.setFillColor(cover_highlight)
-            canvas.roundRect(page_width * 0.07, page_height * 0.14,
-                             page_width * 0.38, page_height * 0.024, 8, fill=1, stroke=0)
-            canvas.setFillColor(colors.HexColor('#ffffff'))
-            canvas.circle(page_width * 0.82, page_height * 0.72,
-                          page_width * 0.16, fill=1, stroke=0)
-
-            title_x = page_width * 0.09
-            title_y = page_height * 0.36
-            title_para = Paragraph(display_title, styles['CoverTitle'])
-            title_para.wrap(page_width * 0.74, page_height * 0.28)
-            title_para.drawOn(canvas, title_x, title_y)
-
-            subtitle_para = Paragraph(display_subtitle, styles['CoverMeta'])
-            subtitle_para.wrap(page_width * 0.68, page_height * 0.08)
-            subtitle_para.drawOn(canvas, title_x, title_y - 42)
-
-            meta_para = Paragraph(
-                f"{author}  |  {datetime.now().strftime('%Y')}", styles['CoverMeta'])
-            meta_para.wrap(page_width * 0.5, page_height * 0.06)
-            meta_para.drawOn(canvas, title_x, page_height * 0.12)
-
-            canvas.setFont('Helvetica-Bold', 11)
-            canvas.setFillColor(colors.HexColor('#e2e8f0'))
-            canvas.drawString(page_width * 0.09, page_height * 0.9, 'PDFree')
-            canvas.restoreState()
-
-        doc.build(story, onFirstPage=_draw_cover_page,
-                  onLaterPages=_draw_footer)
+        _cover_fn = pick_cover(cover_design)
+        doc.build(
+            story,
+            onFirstPage=lambda c, d: _cover_fn(
+                self, c, d, display_title, display_subtitle, author, styles
+            ),
+            onLaterPages=_draw_footer,
+        )
 
         return buffer.getvalue()
 
