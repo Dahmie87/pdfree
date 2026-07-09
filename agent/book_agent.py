@@ -24,7 +24,8 @@ def _extract_json_object(text: str) -> str:
     """Extract the first JSON object from model output."""
     cleaned = text.strip()
     if cleaned.startswith("```"):
-        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE).strip()
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned,
+                         flags=re.IGNORECASE).strip()
         cleaned = re.sub(r"\s*```$", "", cleaned).strip()
 
     start = cleaned.find("{")
@@ -111,7 +112,8 @@ class BookGenerationAgent:
                 "Return only valid JSON for the table of contents. "
                 "Do not add markdown, commentary, or code fences."
             )
-            retry_response = self.llm.invoke(toc_prompt + "\n\n" + retry_prompt)
+            retry_response = self.llm.invoke(
+                toc_prompt + "\n\n" + retry_prompt)
             toc_data = _parse_json_response(retry_response)
             chapters = toc_data.get("chapters", [])
             if not chapters:
@@ -137,7 +139,8 @@ class BookGenerationAgent:
             ) or self._generate_title(user_prompt, writing_mode=writing_mode)
             chapters = data.get("chapters", [])
             if not chapters:
-                raise ValueError("Combined title+TOC response did not include chapters")
+                raise ValueError(
+                    "Combined title+TOC response did not include chapters")
             return title, chapters
         except (json.JSONDecodeError, ValueError) as error:
             logger.error(
@@ -445,7 +448,7 @@ class BookGenerationAgent:
 
         return title, chapters, content
 
-    def generate_pdf_book(self, user_prompt: str, length_priority: str | None = None, writing_mode: str | None = None) -> tuple[bytes, str, float]:
+    def generate_pdf_book(self, user_prompt: str, length_priority: str | None = None, writing_mode: str | None = None, cover_design: str | None = "split") -> tuple[bytes, str, float]:
         """
         Generate a complete PDF book from a user prompt using reiteration.
 
@@ -482,6 +485,7 @@ class BookGenerationAgent:
                     content=content,
                     author="AI Agent",
                     writing_mode=writing_mode,
+                    cover_design=cover_design or "split",
                 )
                 logger.info(f"   ✅ PDF created: {len(pdf_bytes)} bytes")
             except Exception as e:

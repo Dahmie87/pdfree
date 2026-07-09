@@ -15,7 +15,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 import os
 import tempfile
 from reportlab.pdfgen import canvas as rl_canvas
-from cover_designs import pick_cover, _wrap_title
+from generation.cover_designs import pick_cover, _wrap_title
 PILImage = None
 PIL_AVAILABLE = False
 try:

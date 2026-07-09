@@ -95,6 +95,8 @@ class BookRequest(BaseModel):
     filename: str | None = None
     # Optional client-provided version string (e.g. "pdfree:1.3")
     version: str | None = None
+    # Cover design choice: available options documented in /generation/cover_designs.py
+    cover_design: Literal["split", "frame", "stack", "bleed", "arch"] | None = "split"
 
 
 @app.get("/")
@@ -142,6 +144,7 @@ def generate_book(request: BookRequest):
             request.prompt,
             length_priority=request.length_priority,
             writing_mode=request.theme,
+            cover_design=request.cover_design,
         )
 
         # Save temporarily with sanitized filename

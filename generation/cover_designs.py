@@ -34,11 +34,11 @@ def _draw_split(self, canvas, doc_obj, display_title, display_subtitle,
     canvas.saveState()
     W, H = doc_obj.pagesize
 
-    NAVY   = colors.HexColor("#1a3a5c")
-    DARK   = colors.HexColor("#0f1923")
-    GOLD   = colors.HexColor("#e8c97a")
-    WHITE  = colors.white
-    MUTED  = colors.HexColor("#8ab4d4")
+    NAVY = colors.HexColor("#1a3a5c")
+    DARK = colors.HexColor("#0f1923")
+    GOLD = colors.HexColor("#e8c97a")
+    WHITE = colors.white
+    MUTED = colors.HexColor("#8ab4d4")
 
     # Backgrounds
     canvas.setFillColor(NAVY)
@@ -57,22 +57,27 @@ def _draw_split(self, canvas, doc_obj, display_title, display_subtitle,
     canvas.drawPath(p, fill=1, stroke=0)
 
     # Gold vertical + horizontal bracket
-    margin = W * 0.10
+    # tighten margins to use more page real estate
+    margin = W * 0.08
     bracket_top = H * 0.74
-    bracket_h   = H * 0.22
+    bracket_h = H * 0.22
     canvas.setFillColor(GOLD)
-    canvas.rect(margin, bracket_top - bracket_h, 3, bracket_h, fill=1, stroke=0)
+    canvas.rect(margin, bracket_top - bracket_h,
+                3, bracket_h, fill=1, stroke=0)
     canvas.rect(margin, bracket_top - 3, W * 0.14, 3, fill=1, stroke=0)
 
-    # Title block (white + gold accent word)
-    words = display_title.split()
-    y = H * 0.70
-    for i, word in enumerate(words[:4]):          # max 4 lines
-        color = GOLD if i == len(words[:4]) - 1 else WHITE
+    # Title block — wrap title into multiple lines and use more space
+    lines = _wrap_title(display_title, max_chars=26)
+    max_lines = 5
+    font_size = 30
+    leading = font_size + 6
+    y_start = H * 0.68
+    for i, line in enumerate(lines[:max_lines]):
+        color = GOLD if i == min(
+            len(lines[:max_lines]) - 1, max_lines - 1) else WHITE
         canvas.setFillColor(color)
-        canvas.setFont("Helvetica-Bold", 28)
-        canvas.drawString(margin + 10, y, word)
-        y -= 34
+        canvas.setFont("Helvetica-Bold", font_size)
+        canvas.drawString(margin + 10, y_start - i * leading, line)
 
     # Series / genre note
     canvas.setFillColor(MUTED)
@@ -84,13 +89,11 @@ def _draw_split(self, canvas, doc_obj, display_title, display_subtitle,
     canvas.setFont("Helvetica", 13)
     canvas.drawString(margin + 10, H * 0.30, author)
 
-    # Thin rule + publisher line
+    # Thin rule (keep for balance). publisher line removed to avoid
+    # showing stale or injected metadata like vendor/agent strings.
     canvas.setStrokeColor(GOLD)
     canvas.setLineWidth(0.75)
     canvas.line(margin, H * 0.22, margin + W * 0.55, H * 0.22)
-    canvas.setFillColor(MUTED)
-    canvas.setFont("Helvetica", 8)
-    canvas.drawString(margin, H * 0.11, "MERIDIAN PRESS")
 
     canvas.restoreState()
 
@@ -105,13 +108,13 @@ def _draw_frame(self, canvas, doc_obj, display_title, display_subtitle,
     canvas.saveState()
     W, H = doc_obj.pagesize
 
-    CREAM   = colors.HexColor("#f5f0e8")
-    DARK    = colors.HexColor("#2c1a0e")
-    BROWN   = colors.HexColor("#3d2512")
-    GOLD    = colors.HexColor("#c8a96e")
-    TAN     = colors.HexColor("#5a3e28")
+    CREAM = colors.HexColor("#f5f0e8")
+    DARK = colors.HexColor("#2c1a0e")
+    BROWN = colors.HexColor("#3d2512")
+    GOLD = colors.HexColor("#c8a96e")
+    TAN = colors.HexColor("#5a3e28")
 
-    BORDER  = W * 0.05          # outer border inset
+    BORDER = W * 0.05          # outer border inset
     BORDER2 = W * 0.08          # inner border inset
 
     # Cream background
@@ -125,12 +128,14 @@ def _draw_frame(self, canvas, doc_obj, display_title, display_subtitle,
 
     # Inner thin border
     canvas.setLineWidth(0.75)
-    canvas.rect(BORDER2, BORDER2, W - 2*BORDER2, H - 2*BORDER2, fill=0, stroke=1)
+    canvas.rect(BORDER2, BORDER2, W - 2*BORDER2,
+                H - 2*BORDER2, fill=0, stroke=1)
 
     # Dark header panel
     header_h = H * 0.38
     canvas.setFillColor(DARK)
-    canvas.rect(BORDER, H - BORDER - header_h, W - 2*BORDER, header_h, fill=1, stroke=0)
+    canvas.rect(BORDER, H - BORDER - header_h, W -
+                2*BORDER, header_h, fill=1, stroke=0)
     canvas.setFillColor(BROWN)
     canvas.rect(BORDER2, H - BORDER2 - (header_h - (BORDER2 - BORDER)),
                 W - 2*BORDER2, header_h - (BORDER2 - BORDER), fill=1, stroke=0)
@@ -196,11 +201,11 @@ def _draw_stack(self, canvas, doc_obj, display_title, display_subtitle,
     canvas.saveState()
     W, H = doc_obj.pagesize
 
-    FOREST  = colors.HexColor("#1c2b1e")
-    DARK    = colors.HexColor("#0f1a10")
-    GREEN   = colors.HexColor("#4a9e5c")
-    LIGHT   = colors.HexColor("#e8f5e4")
-    MUTED   = colors.HexColor("#7ab888")
+    FOREST = colors.HexColor("#1c2b1e")
+    DARK = colors.HexColor("#0f1a10")
+    GREEN = colors.HexColor("#4a9e5c")
+    LIGHT = colors.HexColor("#e8f5e4")
+    MUTED = colors.HexColor("#7ab888")
 
     # Background
     canvas.setFillColor(FOREST)
@@ -279,11 +284,11 @@ def _draw_bleed(self, canvas, doc_obj, display_title, display_subtitle,
 
     PANEL_L = colors.HexColor("#3d1254")   # left panel
     PANEL_R = colors.HexColor("#1e0828")   # right panel
-    SEAM    = colors.HexColor("#8b3ab8")   # vertical seam accent
-    LILAC   = colors.HexColor("#c17ae0")
+    SEAM = colors.HexColor("#8b3ab8")   # vertical seam accent
+    LILAC = colors.HexColor("#c17ae0")
     PARCHMT = colors.HexColor("#f0d6ff")
 
-    SPLIT   = W * 0.57                     # vertical split x position
+    SPLIT = W * 0.57                     # vertical split x position
 
     # Left panel
     canvas.setFillColor(PANEL_L)
@@ -353,13 +358,13 @@ def _draw_arch(self, canvas, doc_obj, display_title, display_subtitle,
     canvas.saveState()
     W, H = doc_obj.pagesize
 
-    CREAM   = colors.HexColor("#f7f3ec")
-    TERRA   = colors.HexColor("#c8402a")
+    CREAM = colors.HexColor("#f7f3ec")
+    TERRA = colors.HexColor("#c8402a")
     ARCH_BG = colors.HexColor("#e8dfc8")
-    STROKE  = colors.HexColor("#8a6a3a")
-    DARK    = colors.HexColor("#3d2010")
-    MID     = colors.HexColor("#6a4e2a")
-    LIGHT   = colors.HexColor("#f7e8e0")
+    STROKE = colors.HexColor("#8a6a3a")
+    DARK = colors.HexColor("#3d2010")
+    MID = colors.HexColor("#6a4e2a")
+    LIGHT = colors.HexColor("#f7e8e0")
 
     # Page background
     canvas.setFillColor(CREAM)
@@ -371,12 +376,12 @@ def _draw_arch(self, canvas, doc_obj, display_title, display_subtitle,
     canvas.rect(0, 0, W, footer_h, fill=1, stroke=0)
 
     # ---- Arched frame ----
-    inset  = W * 0.11
-    ax     = inset                        # arch left
-    aw     = W - 2 * inset               # arch width
-    ab     = footer_h + H * 0.03         # arch base y
-    at     = H - H * 0.08               # arch top y (flat part)
-    arc_r  = aw / 2                      # semicircle radius
+    inset = W * 0.11
+    ax = inset                        # arch left
+    aw = W - 2 * inset               # arch width
+    ab = footer_h + H * 0.03         # arch base y
+    at = H - H * 0.08               # arch top y (flat part)
+    arc_r = aw / 2                      # semicircle radius
     arc_cx = ax + arc_r                  # arc centre x
     arc_cy = at                           # arc centre y
 
@@ -404,7 +409,7 @@ def _draw_arch(self, canvas, doc_obj, display_title, display_subtitle,
     # Inner arch inset line (thinner)
     inset2 = inset + W * 0.06
     ax2, aw2 = inset2, W - 2 * inset2
-    arc_r2  = aw2 / 2
+    arc_r2 = aw2 / 2
     canvas.setLineWidth(0.75)
     canvas.setStrokeColor(colors.HexColor("#8a6a3a"))
     p3 = canvas.beginPath()
