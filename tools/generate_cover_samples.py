@@ -22,11 +22,13 @@ def main():
     for design in DESIGNS:
         for i in range(1, 6):
             title = f"Test {design.capitalize()} {i} — A Very Long Title To Exercise Wrapping And Layout"
-            content = ("This is sample content used to build a PDF for testing purposes.\n\n" * 40).strip()
+            content = (
+                "This is sample content used to build a PDF for testing purposes.\n\n" * 40).strip()
             filename = OUTPUT_DIR / f"cover_{design}_{i}.pdf"
             print(f"Generating: {filename}")
             try:
-                pdf_bytes = gen.generate_pdf(title=title, content=content, author="Tester", writing_mode="casual", cover_design=design)
+                pdf_bytes = gen.generate_pdf(
+                    title=title, content=content, author="Tester", writing_mode="casual", cover_design=design)
                 with open(filename, "wb") as f:
                     f.write(pdf_bytes)
             except Exception as e:
